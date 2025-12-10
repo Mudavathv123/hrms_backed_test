@@ -1,0 +1,57 @@
+
+  name: Backend CI/CD
+
+  on:
+    push:
+      branches: [ "main" ]
+    pull_request:
+
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+
+        - name: Setup JDK
+          uses: actions/setup-java@v3
+          with:
+            java-version: '17'
+            distribution: 'temurin'
+
+        - name: Build Spring Boot App
+          run: mvn clean package -DskipTests
+
+        - name: Generate ZIP for Elastic Beanstalk
+          run: |
+            mkdir deploy
+            cp target/*.jar deploy/application.jar
+            cd deploy
+            zip -r backend.zip application.jar
+
+        - name: Upload to S3 (EB bucket)
+          run: |
+            aws s3 cp deploy/backend.zip s3://$EB_S3_BUCKET/backend-${{ github.run_number }}.zip
+          env:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION: ${{ secrets.AWS_REGION }}
+
+        - name: Deploy to Elastic Beanstalk
+          run: |
+            aws elasticbeanstalk create-application-version \
+              --application-name $EB_APP_NAME \
+              --version-label "v-${{ github.run_number }}" \
+              --source-bundle S3Bucket=$EB_S3_BUCKET,S3Key=backend-${{ github.run_number }}.zip
+            
+            aws elasticbeanstalk update-environment \
+              --environment-name $EB_ENV_NAME \
+              --version-label "v-${{ github.run_number }}"
+          env:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION: ${{ secrets.AWS_REGION }}
+            EB_APP_NAME: ${{ secrets.EB_APP_NAME }}
+            EB_ENV_NAME: ${{ secrets.EB_ENV_NAME }}
+            EB_S3_BUCKET: ${{ secrets.EB_S3_BUCKET }}

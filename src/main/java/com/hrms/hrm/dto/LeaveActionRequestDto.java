@@ -1,0 +1,20 @@
+package com.hrms.hrm.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class LeaveActionRequestDto {
+
+    private String action;  // APPROVE / REJECT / CANCEL
+    private String comment; // Optional manager/employee comment
+
+    private UUID actorEmployeeId;
+}
