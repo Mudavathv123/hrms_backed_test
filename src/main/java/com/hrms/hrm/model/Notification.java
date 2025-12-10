@@ -1,5 +1,7 @@
 package com.hrms.hrm.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,10 +41,12 @@ public class Notification {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_employee_id")
+    @JsonIgnore
     private Employee sender;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "receiver_employee_id")
+    @JsonIgnore
     private Employee receiver;
 
     @Enumerated(EnumType.STRING)

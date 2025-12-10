@@ -53,6 +53,7 @@ public class Employee {
     private List<Attendance> attendanceList;
 
     @OneToMany(mappedBy = "receiver", cascade = CascadeType.ALL)
+    @JsonManagedReference
     private List<Notification> receivedNotifications;
 
     @OneToMany(mappedBy = "sender", cascade = CascadeType.ALL)

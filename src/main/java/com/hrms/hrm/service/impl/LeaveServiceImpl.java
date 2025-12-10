@@ -66,6 +66,7 @@ public class LeaveServiceImpl implements LeaveService {
                                     " to " + request.getEndDate())
                             .senderId(employee.getId())
                             .receiverId(admin.getEmployee().getId())
+                            .targetRole("ADMIN")
                             .build()
             );
         });
@@ -109,6 +110,7 @@ public class LeaveServiceImpl implements LeaveService {
                         .message(msg)
                         .senderId(actor.getId())                 // Manager/HR/Admin
                         .receiverId(leave.getEmployee().getId()) // Employee receiving notification
+                        .targetRole("ADMIN")
                         .build()
         );
 
