@@ -27,5 +27,5 @@ public class EmployeeRequestDto {
     private String departmentName;
 
     private String password;
-    private User.Role role;
+    private String role;
 }

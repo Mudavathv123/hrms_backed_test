@@ -57,8 +57,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setDepartment(department);
         employee = employeeRepository.save(employee);
 
+        User.Role role = User.Role.ROLE_EMPLOYEE;
+
+        if(request.getRole() != null)
+            role = User.Role.valueOf("ROLE_" +request.getRole().toUpperCase());
+
         User user = User.builder()
-                .role(request.getRole())
+                .role(role)
                 .username(request.getFirstName() + " " + request.getLastName())
                 .email(request.getEmail())
                 .phone(request.getPhone())
