@@ -21,6 +21,7 @@ public class EmployeeResponseDto {
     private String designation;
     private String email;
     private String phone;
+    private String address;
     private LocalDate joiningDate;
     private LocalDate dateOfBirth;
     private String departmentName;

@@ -13,8 +13,8 @@ import java.util.UUID;
 @Builder
 public class LeaveActionRequestDto {
 
-    private String action;  // APPROVE / REJECT / CANCEL
-    private String comment; // Optional manager/employee comment
+    private String action;
+    private String comment;
 
     private UUID actorEmployeeId;
 }

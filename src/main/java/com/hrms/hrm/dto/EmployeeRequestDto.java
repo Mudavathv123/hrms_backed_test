@@ -21,10 +21,11 @@ public class EmployeeRequestDto {
     private String email;
     private String phone;
     private Double salary;
+    private String address;
     private LocalDate joiningDate;
     private LocalDate dateOfBirth;
     private String departmentName;
 
     private String password;
-    private User.Role role = User.Role.ROLE_EMPLOYEE;
+    private User.Role role;
 }

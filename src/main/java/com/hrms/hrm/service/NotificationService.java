@@ -19,5 +19,4 @@ public interface NotificationService {
 
     void deleteNotification(UUID id);
 
-    NotificationResponseDto createNotification(NotificationRequestDto req);
 }

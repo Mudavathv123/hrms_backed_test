@@ -1,10 +1,7 @@
 package com.hrms.hrm.controller;
 
 import com.hrms.hrm.config.ApiResponse;
-import com.hrms.hrm.dto.LoginRequestDto;
-import com.hrms.hrm.dto.LoginResponseDto;
-import com.hrms.hrm.dto.SignupRequestDto;
-import com.hrms.hrm.dto.SignupResponseDto;
+import com.hrms.hrm.dto.*;
 import com.hrms.hrm.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,5 +35,17 @@ public class AuthController {
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<SignupResponseDto>> signup(@RequestBody SignupRequestDto request) {
         return ResponseEntity.ok(ApiResponse.success(authService.signup(request), "signup is successful"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@RequestBody ForgotPasswordKeyRequestDto request) {
+            String token = authService.generateResetToken(request);
+            return ResponseEntity.ok(ApiResponse.success(token, "Use this token to reset password (valid for 10 mins)"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<?>> resetPassword(@RequestBody ResetPasswordRequestDto request) {
+        authService.restPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("", "Password reset successfully"));
     }
 }

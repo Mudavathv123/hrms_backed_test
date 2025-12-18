@@ -1,6 +1,7 @@
 package com.hrms.hrm.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -43,6 +44,8 @@ public class Employee {
 
     private LocalDate dateOfBirth;
 
+    private String address;
+
     @ManyToOne
     @JoinColumn(name = "department_id")
     @JsonBackReference
@@ -57,5 +60,6 @@ public class Employee {
     private List<Notification> receivedNotifications;
 
     @OneToMany(mappedBy = "sender", cascade = CascadeType.ALL)
+    @JsonIgnore
     private List<Notification> sentNotifications;
 }

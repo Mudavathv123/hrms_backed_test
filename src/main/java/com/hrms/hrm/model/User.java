@@ -51,6 +51,15 @@ public class User {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
+    private String phone;
+
+    @Column(name = "reset_token")
+    private String resetToken;
+
+    @Column(name = "reset_token_expiry")
+    private LocalDateTime resetTokenExpiry;
+
+
     @Enumerated(EnumType.STRING)
     private Role role;
 

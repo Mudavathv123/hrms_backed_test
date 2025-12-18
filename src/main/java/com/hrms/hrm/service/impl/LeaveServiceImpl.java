@@ -17,6 +17,7 @@ import com.hrms.hrm.service.LeaveService;
 import com.hrms.hrm.service.NotificationService;
 import com.hrms.hrm.util.DtoMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LeaveServiceImpl implements LeaveService {
 
     private final LeaveRepository leaveRepository;
@@ -33,10 +35,8 @@ public class LeaveServiceImpl implements LeaveService {
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
 
-    // ---------------- APPLY LEAVE --------------------
     @Override
     public LeaveResponseDto applyLeave(LeaveRequestDto request) {
-
         Employee employee = employeeRepository.findById(request.getEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
@@ -50,42 +50,50 @@ public class LeaveServiceImpl implements LeaveService {
                 .appliedOn(LocalDate.now())
                 .build();
 
-        Leave saved = leaveRepository.save(leave);
+        Leave savedLeave = leaveRepository.save(leave);
+        log.info("Leave applied - Employee: {} | Period: {} to {}",
+                employee.getId(), request.getStartDate(), request.getEndDate());
 
-        // Send notification to all admins
+
         List<User> admins = userRepository.findByRole(User.Role.ROLE_ADMIN);
-
         admins.forEach(admin -> {
-            notificationService.createNotification(
-                    NotificationRequestDto.builder()
-                            .type("INFO")
-                            .date(LocalDate.now())
-                            .title("New Leave Request")
-                            .message(employee.getFirstName() + " " + employee.getLastName() +
-                                    " applied leave from " + request.getStartDate() +
-                                    " to " + request.getEndDate())
-                            .senderId(employee.getId())
-                            .receiverId(admin.getEmployee().getId())
-                            .targetRole("ADMIN")
-                            .build()
-            );
+            try {
+                if (admin.getEmployee() == null) {
+                    log.warn("Admin {} has no employee mapping, skipping notification", admin.getId());
+                    return;
+                }
+
+                NotificationRequestDto notification = NotificationRequestDto.builder()
+                        .type("INFO")
+                        .title("New Leave Request")
+                        .message(String.format("%s %s applied leave from %s to %s",
+                                employee.getFirstName(), employee.getLastName(),
+                                request.getStartDate(), request.getEndDate()))
+                        .date(LocalDate.now())
+                        .senderId(employee.getId())
+                        .receiverId(admin.getEmployee().getId())
+                        .targetRole("ROLE_ADMIN")
+                        .build();
+
+                notificationService.sendNotification(notification);
+                log.debug("Notification sent to admin userId: {}", admin.getId());
+            } catch (Exception e) {
+                log.error("Failed to send leave notification to admin {}: {}", admin.getId(), e.getMessage(), e);
+            }
         });
 
-        return DtoMapper.toDto(saved);
+        return DtoMapper.toDto(savedLeave);
     }
 
-    // ---------------- MANAGER/HR/ADMIN ACTIONS --------------------
     @Override
     public LeaveResponseDto actOnLeave(UUID leaveId, LeaveActionRequestDto actionRequest) {
         Leave leave = leaveRepository.findById(leaveId)
                 .orElseThrow(() -> new ResourceNotFoundException("Leave not found"));
 
-        // Identify acting user (manager/hr/admin)
         Employee actor = employeeRepository.findById(actionRequest.getActorEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Actor (Manager/HR/Admin) not found"));
 
         String action = actionRequest.getAction().toUpperCase();
-
         switch (action) {
             case "APPROVE" -> leave.setStatus(LeaveStatus.APPROVED);
             case "REJECT" -> leave.setStatus(LeaveStatus.REJECTED);
@@ -96,25 +104,36 @@ public class LeaveServiceImpl implements LeaveService {
         leave.setManagerComment(actionRequest.getComment());
         leave.setActionOn(LocalDate.now());
 
-        Leave updated = leaveRepository.save(leave);
+        Leave updatedLeave = leaveRepository.save(leave);
+        log.info("Leave action processed - LeaveID: {}, Action: {}, Status: {}",
+                leaveId, action, leave.getStatus());
 
-        // ********** SEND NOTIFICATION TO EMPLOYEE **********
-        String msg = "Your leave request has been " + leave.getStatus() +
-                " by " + actor.getFirstName() + " (" + actor.getDesignation() + ")";
+        try {
+            if (leave.getEmployee() == null) {
+                log.warn("Leave has null employee reference. Cannot send notification.");
+                return DtoMapper.toDto(updatedLeave);
+            }
 
-        notificationService.createNotification(
-                NotificationRequestDto.builder()
-                        .type("ALERT")
-                        .title("Leave " + leave.getStatus())
-                        .date(LocalDate.now())
-                        .message(msg)
-                        .senderId(actor.getId())                 // Manager/HR/Admin
-                        .receiverId(leave.getEmployee().getId()) // Employee receiving notification
-                        .targetRole("ADMIN")
-                        .build()
-        );
+            String msg = "Your leave request has been " + leave.getStatus() +
+                    " by " + actor.getFirstName() + " (" + actor.getDesignation() + ")";
 
-        return DtoMapper.toDto(updated);
+            NotificationRequestDto notification = NotificationRequestDto.builder()
+                    .type("ALERT")
+                    .title("Leave " + leave.getStatus())
+                    .date(LocalDate.now())
+                    .message(msg)
+                    .senderId(actor.getId())
+                    .receiverId(leave.getEmployee().getId())
+                    .targetRole("ROLE_EMPLOYEE")
+                    .build();
+
+            notificationService.sendNotification(notification);
+            log.debug("Leave action notification sent to employee: {}", leave.getEmployee().getId());
+        } catch (Exception e) {
+            log.error("Failed to send leave notification to employee: {}", e.getMessage(), e);
+        }
+
+        return DtoMapper.toDto(updatedLeave);
     }
 
     @Override

@@ -26,4 +26,14 @@ public class GlobalExceptionHandler {
         ApiResponse<?> response = ApiResponse.error(ex.getMessage());
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleAll(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiError("Internal error"));
+    }
+
+    static class ApiError {
+        public String message;
+        public ApiError(String message) { this.message = message; }
+    }
  }

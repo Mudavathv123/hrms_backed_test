@@ -2,6 +2,7 @@ package com.hrms.hrm.service;
 
 import com.hrms.hrm.dto.*;
 import com.hrms.hrm.error.BadCredentialsException;
+import com.hrms.hrm.error.ResourceNotFoundException;
 import com.hrms.hrm.model.Employee;
 import com.hrms.hrm.model.User;
 import com.hrms.hrm.repository.EmployeeRepository;
@@ -33,6 +34,35 @@ public class AuthService {
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int LOCK_MINUTES = 10;
+
+
+    public String generateResetToken(ForgotPasswordKeyRequestDto requestDto) {
+        User user = userRepository.findByEmail(requestDto.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found exception"));
+
+        String token = UUID.randomUUID().toString();
+
+        user.setResetToken(token);
+        user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(10));
+        userRepository.save(user);
+
+        return token;
+    }
+
+
+    public void restPassword(ResetPasswordRequestDto requestDto) {
+        User user = userRepository.findByResetToken(requestDto.getResetToken())
+                .orElseThrow(() -> new RuntimeException("Invalid token"));
+
+        if(user.getResetTokenExpiry().isBefore(LocalDateTime.now()))
+                throw new RuntimeException("Token expired.");
+
+        user.setPassword(passwordEncoder.encode(requestDto.getNewPassword()));
+        user.setResetToken(null);
+        user.setResetTokenExpiry(null);
+
+        userRepository.save(user);
+    }
 
     public LoginResponseDto login(LoginRequestDto request) {
 
@@ -119,7 +149,6 @@ public class AuthService {
 
         User savedUser = userRepository.save(newUser);
 
-        // 2️⃣ Create Employee entry for Admin/HR/Manager
         if (role == User.Role.ROLE_ADMIN || role == User.Role.ROLE_HR || role == User.Role.ROLE_MANAGER) {
             int randomNumber = (int) (Math.random() * 900) + 100;
             String empId = "EMP-" + randomNumber;
@@ -130,7 +159,7 @@ public class AuthService {
                     .lastName("") // optional
                     .email(request.getEmail())
                     .phone("N/A")
-                    .designation(role.name().replace("ROLE_", "")) // Admin / HR / Manager
+                    .designation(role.name().replace("ROLE_", ""))
                     .salary(0.0)
                     .joiningDate(LocalDate.now())
                     .build();

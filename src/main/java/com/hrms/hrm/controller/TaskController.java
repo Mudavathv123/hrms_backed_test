@@ -27,7 +27,6 @@ public class TaskController {
         );
     }
 
-    // UPDATE TASK DETAILS
     @PutMapping("/{taskId}")
     public ResponseEntity<ApiResponse<TaskResponseDto>> updateTask(
             @PathVariable UUID taskId,
@@ -38,7 +37,6 @@ public class TaskController {
         );
     }
 
-    // UPDATE TASK STATUS ONLY
     @PatchMapping("/{taskId}/status")
     public ResponseEntity<ApiResponse<TaskResponseDto>> updateTaskStatus(
             @PathVariable UUID taskId,
@@ -49,7 +47,6 @@ public class TaskController {
         );
     }
 
-    // DELETE TASK
     @DeleteMapping("/{taskId}")
     public ResponseEntity<ApiResponse<Void>> deleteTask(@PathVariable UUID taskId) {
         taskService.deleteTask(taskId);
@@ -58,7 +55,6 @@ public class TaskController {
         );
     }
 
-    // GET TASKS ASSIGNED TO EMPLOYEE
     @GetMapping("/employee/{employeeId}")
     public ResponseEntity<ApiResponse<List<TaskResponseDto>>> getTasksForEmployee(@PathVariable UUID employeeId) {
         return ResponseEntity.ok(
@@ -66,7 +62,6 @@ public class TaskController {
         );
     }
 
-    // GET ALL TASKS
     @GetMapping
     public ResponseEntity<ApiResponse<List<TaskResponseDto>>> getAllTasks() {
         return ResponseEntity.ok(

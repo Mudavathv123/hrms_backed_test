@@ -21,9 +21,12 @@ public interface UserRepository extends JpaRepository<User,Long> {
 
     Optional<User> findByEmail(String email);
 
+
     boolean existsByEmail(String email);
 
     Optional<User> findByEmployee(Employee employee);
+
+    Optional<User> findByResetToken(String resetToken);
 
     List<User> findByRole(User.Role role);
 
@@ -41,4 +44,6 @@ public interface UserRepository extends JpaRepository<User,Long> {
     @Modifying
     @Query("UPDATE User u SET u.lockedUntil =:lockedUntil WHERE u.username =:username")
     void lockUser(@Param("username") String username, @Param("lockedUntil") LocalDateTime lockedUntil);
+
+    Optional<User> findByEmailOrPhone(String email, String phone);
 }

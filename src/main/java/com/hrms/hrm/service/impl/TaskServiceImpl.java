@@ -34,29 +34,28 @@ public class TaskServiceImpl implements TaskService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
-    // ---------------------------------------------------
-    // Get logged-in employee as sender
-    // ---------------------------------------------------
-    private Employee getLoggedInEmployee() {
 
+    private Employee getLoggedInEmployee() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Logged-in user not found"));
 
-        log.warn("User in  task service: {} - Attempt {}/{}", user);
+        if (user.getEmployee() == null) {
+            log.warn("Logged-in user {} has no employee mapping", user.getEmail());
+            throw new ResourceNotFoundException("Employee not found for logged-in user");
+        }
+
         return user.getEmployee();
     }
 
-    // ---------------------------------------------------
-    // CREATE TASK
-    // ---------------------------------------------------
+
     @Override
     public TaskResponseDto createTask(TaskRequestDto request) {
+        Employee assignedEmployee = employeeRepository.findById(UUID.fromString(request.getAssignedToEmployeeId()))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Employee not found with id: " + request.getAssignedToEmployeeId()));
 
-        Employee employee = employeeRepository.findById(UUID.fromString(request.getAssignedToEmployeeId()))
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + request.getAssignedToEmployeeId()));
-
-        Employee sender = getLoggedInEmployee(); // ADMIN or MANAGER who created
+        Employee sender = getLoggedInEmployee();
 
         Task task = Task.builder()
                 .title(request.getTitle())
@@ -65,91 +64,74 @@ public class TaskServiceImpl implements TaskService {
                 .dueDate(request.getDueDate())
                 .priority(Task.TaskPriority.valueOf(request.getPriority().toUpperCase()))
                 .status(Task.TaskStatus.TODO)
-                .assignedTo(employee)
-                .employeeName(employee.getFirstName() + " " + employee.getLastName())
+                .assignedTo(assignedEmployee)
+                .employeeName(assignedEmployee.getFirstName() + " " + assignedEmployee.getLastName())
                 .build();
 
         Task saved = taskRepository.save(task);
 
-        // Notify employee
-        notificationService.createNotification(
-                NotificationRequestDto.builder()
-                        .type("TASK")
-                        .title("New Task Assigned")
-                        .date(LocalDate.now())
-                        .message("A new task '" + task.getTitle() + "' has been assigned to you by "
-                                + sender.getFirstName())
-                        .senderId(sender.getId())     // REAL SENDER
-                        .receiverId(employee.getId()) // EMPLOYEE
-                        .targetRole("EMPLOYEE")
-                        .build()
-        );
+
+        notificationService.sendNotification(NotificationRequestDto.builder()
+                .type("TASK")
+                .title("New Task Assigned")
+                .date(LocalDate.now())
+                .message("A new task '" + task.getTitle() + "' has been assigned to you by "
+                        + sender.getFirstName())
+                .senderId(sender.getId())
+                .receiverId(assignedEmployee.getId())
+                .targetRole("ROLE_EMPLOYEE")
+                .build());
+
+        log.info("Task created and notification sent - TaskID: {}, AssignedTo: {}", saved.getId(), assignedEmployee.getId());
         return DtoMapper.toDto(saved);
     }
 
-    // ---------------------------------------------------
-    // UPDATE TASK DETAILS
-    // ---------------------------------------------------
+
     @Override
     public TaskResponseDto updateTask(UUID taskId, TaskRequestDto request) {
-
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + taskId));
 
         Employee sender = getLoggedInEmployee();
 
-        if (request.getTitle() != null)
-            task.setTitle(request.getTitle());
-
-        if (request.getDescription() != null)
-            task.setDescription(request.getDescription());
-
-        if (request.getStartDate() != null)
-            task.setStartDate(request.getStartDate());
-
-        if (request.getDueDate() != null)
-            task.setDueDate(request.getDueDate());
-
-        if (request.getPriority() != null)
-            task.setPriority(Task.TaskPriority.valueOf(request.getPriority().toUpperCase()));
+        if (request.getTitle() != null) task.setTitle(request.getTitle());
+        if (request.getDescription() != null) task.setDescription(request.getDescription());
+        if (request.getStartDate() != null) task.setStartDate(request.getStartDate());
+        if (request.getDueDate() != null) task.setDueDate(request.getDueDate());
+        if (request.getPriority() != null) task.setPriority(Task.TaskPriority.valueOf(request.getPriority().toUpperCase()));
 
         if (request.getAssignedToEmployeeId() != null) {
             Employee employee = employeeRepository.findById(UUID.fromString(request.getAssignedToEmployeeId()))
-                    .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + request.getAssignedToEmployeeId()));
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Employee not found with id: " + request.getAssignedToEmployeeId()));
             task.setAssignedTo(employee);
             task.setEmployeeName(employee.getFirstName() + " " + employee.getLastName());
         }
 
         Task updated = taskRepository.save(task);
 
-        // Notify updated employee
-        notificationService.createNotification(
-                NotificationRequestDto.builder()
-                        .type("TASK")
-                        .title("Task Updated")
-                        .date(LocalDate.now())
-                        .message("Your task '" + task.getTitle() + "' has been updated by "
-                                + sender.getFirstName())
-                        .senderId(sender.getId())
-                        .receiverId(task.getAssignedTo().getId())
-                        .targetRole("EMPLOYEE")
-                        .build()
-        );
 
+        notificationService.sendNotification(NotificationRequestDto.builder()
+                .type("TASK")
+                .title("Task Updated")
+                .date(LocalDate.now())
+                .message("Your task '" + task.getTitle() + "' has been updated by " + sender.getFirstName())
+                .senderId(sender.getId())
+                .receiverId(task.getAssignedTo().getId())
+                .targetRole("ROLE_EMPLOYEE")
+                .build());
+
+        log.info("Task updated and notification sent - TaskID: {}", updated.getId());
         return DtoMapper.toDto(updated);
     }
 
-    // ---------------------------------------------------
-    // UPDATE TASK STATUS (EMPLOYEE MARK COMPLETE)
-    // ---------------------------------------------------
+
     @Override
     public TaskResponseDto updateTaskStatus(UUID taskId, TaskStatusUpdateDto request) {
-
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + taskId));
 
-        Employee sender = getLoggedInEmployee(); // who is performing the status update
-
+        Employee sender = getLoggedInEmployee();
         task.setStatus(Task.TaskStatus.valueOf(request.getStatus().toUpperCase()));
         Task updated = taskRepository.save(task);
 
@@ -157,66 +139,60 @@ public class TaskServiceImpl implements TaskService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Logged-in user not found"));
 
-        // Determine whom to notify
         if (user.getRole() == User.Role.ROLE_EMPLOYEE) {
-            // Employee updated → notify Admins/Managers
-            List<User> managers = userRepository.findByRole(User.Role.ROLE_ADMIN);
-            managers.forEach(manager -> notificationService.createNotification(
-                    NotificationRequestDto.builder()
-                            .type("TASK")
-                            .title("Task Status Updated")
-                            .date(LocalDate.now())
-                            .message("Task '" + task.getTitle() + "' updated to " + updated.getStatus()
-                                    + " by " + sender.getFirstName())
-                            .senderId(sender.getId())
-                            .receiverId(manager.getEmployee().getId())
-                            .targetRole("ADMIN") // Receiver role
-                            .build()
-            ));
+
+            List<User> admins = userRepository.findByRole(User.Role.ROLE_ADMIN);
+            admins.forEach(admin -> notificationService.sendNotification(NotificationRequestDto.builder()
+                    .type("TASK")
+                    .title("Task Status Updated")
+                    .date(LocalDate.now())
+                    .message("Task '" + task.getTitle() + "' updated to " + updated.getStatus()
+                            + " by " + sender.getFirstName())
+                    .senderId(sender.getId())
+                    .receiverId(admin.getEmployee().getId())
+                    .targetRole("ROLE_ADMIN")
+                    .build()));
         } else {
-            // Admin/Manager updated → notify Employee
             Employee employee = task.getAssignedTo();
-            notificationService.createNotification(
-                    NotificationRequestDto.builder()
-                            .type("TASK")
-                            .title("Task Status Updated")
-                            .date(LocalDate.now())
-                            .message("Your task '" + task.getTitle() + "' updated to " + updated.getStatus()
-                                    + " by " + sender.getFirstName())
-                            .senderId(sender.getId())
-                            .receiverId(employee.getId())
-                            .targetRole("EMPLOYEE") // Receiver role
-                            .build()
-            );
+            notificationService.sendNotification(NotificationRequestDto.builder()
+                    .type("TASK")
+                    .title("Task Status Updated")
+                    .date(LocalDate.now())
+                    .message("Your task '" + task.getTitle() + "' updated to " + updated.getStatus()
+                            + " by " + sender.getFirstName())
+                    .senderId(sender.getId())
+                    .receiverId(employee.getId())
+                    .targetRole("ROLE_EMPLOYEE")
+                    .build());
         }
 
+        log.info("Task status updated - TaskID: {}, Status: {}", task.getId(), updated.getStatus());
         return DtoMapper.toDto(updated);
     }
 
-    // ---------------------------------------------------
-    // DELETE TASK
-    // ---------------------------------------------------
     @Override
     public void deleteTask(UUID taskId) {
-
-        taskRepository.findById(taskId)
+        Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found with id: " + taskId));
 
-        taskRepository.deleteById(taskId);
+        taskRepository.delete(task);
+        log.info("Task deleted - TaskID: {}", taskId);
     }
 
-    // ---------------------------------------------------
-    // GET TASKS
-    // ---------------------------------------------------
+
     @Override
     public List<TaskResponseDto> getTasksForEmployee(UUID employeeId) {
         return taskRepository.findByAssignedToId(employeeId)
-                .stream().map(DtoMapper::toDto).toList();
+                .stream()
+                .map(DtoMapper::toDto)
+                .toList();
     }
 
     @Override
     public List<TaskResponseDto> getAllTasks() {
         return taskRepository.findAll()
-                .stream().map(DtoMapper::toDto).toList();
+                .stream()
+                .map(DtoMapper::toDto)
+                .toList();
     }
 }

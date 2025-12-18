@@ -17,7 +17,7 @@ public class LeaveRequestDto {
     private UUID employeeId;
     private LocalDate startDate;
     private LocalDate endDate;
-    private String leaveType;   // SICK, CASUAL, ANNUAL, etc.
+    private String leaveType;
     private String reason;
 }
 

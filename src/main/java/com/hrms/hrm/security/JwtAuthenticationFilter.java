@@ -32,6 +32,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
 
+        if (path.startsWith("/ws")) {
+            return true;
+        }
+
         if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
             return true;
         }
