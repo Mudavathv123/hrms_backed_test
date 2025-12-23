@@ -84,6 +84,8 @@
                             // Auth
                             .requestMatchers("/auth/signup").hasRole("ADMIN")
                             .requestMatchers("/auth/**").permitAll()
+                            .requestMatchers(HttpMethod.POST,"/auth/reset-password").hasRole("ADMIN")
+                            .requestMatchers(HttpMethod.POST, "/auth/forgot-password").hasRole("ADMIN")
 
 
                             // ---------------- EMPLOYEE ----------------
