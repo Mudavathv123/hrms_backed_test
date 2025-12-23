@@ -55,7 +55,7 @@
                     "http://localhost:3000",
                     "http://localhost:5173",
                     "http://localhost:4200",
-                https://d1ujpx8cjlbvx.cloudfront.net
+                "https://d1ujpx8cjlbvx.cloudfront.net"
             ));
             config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE","PATCH" ,"OPTIONS"));
             config.setAllowedHeaders(List.of("*"));
