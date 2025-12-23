@@ -6,6 +6,7 @@ import com.hrms.hrm.dto.TaskResponseDto;
 import com.hrms.hrm.dto.TaskStatusUpdateDto;
 import com.hrms.hrm.error.ResourceNotFoundException;
 import com.hrms.hrm.model.Employee;
+import com.hrms.hrm.model.Notification;
 import com.hrms.hrm.model.Task;
 import com.hrms.hrm.model.User;
 import com.hrms.hrm.repository.EmployeeRepository;
@@ -72,7 +73,7 @@ public class TaskServiceImpl implements TaskService {
 
 
         notificationService.sendNotification(NotificationRequestDto.builder()
-                .type("TASK")
+                .type(String.valueOf(Notification.NotificationType.TASK))
                 .title("New Task Assigned")
                 .date(LocalDate.now())
                 .message("A new task '" + task.getTitle() + "' has been assigned to you by "
@@ -112,7 +113,7 @@ public class TaskServiceImpl implements TaskService {
 
 
         notificationService.sendNotification(NotificationRequestDto.builder()
-                .type("TASK")
+                .type(String.valueOf(Notification.NotificationType.TASK))
                 .title("Task Updated")
                 .date(LocalDate.now())
                 .message("Your task '" + task.getTitle() + "' has been updated by " + sender.getFirstName())
@@ -143,7 +144,7 @@ public class TaskServiceImpl implements TaskService {
 
             List<User> admins = userRepository.findByRole(User.Role.ROLE_ADMIN);
             admins.forEach(admin -> notificationService.sendNotification(NotificationRequestDto.builder()
-                    .type("TASK")
+                    .type(String.valueOf(Notification.NotificationType.TASK))
                     .title("Task Status Updated")
                     .date(LocalDate.now())
                     .message("Task '" + task.getTitle() + "' updated to " + updated.getStatus()
@@ -155,7 +156,7 @@ public class TaskServiceImpl implements TaskService {
         } else {
             Employee employee = task.getAssignedTo();
             notificationService.sendNotification(NotificationRequestDto.builder()
-                    .type("TASK")
+                    .type(String.valueOf(Notification.NotificationType.TASK))
                     .title("Task Status Updated")
                     .date(LocalDate.now())
                     .message("Your task '" + task.getTitle() + "' updated to " + updated.getStatus()

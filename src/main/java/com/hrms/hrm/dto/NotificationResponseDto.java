@@ -9,15 +9,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * DTO for Notification responses.
- * Used for API serialization and client-facing notification data.
- * 
- * PRODUCTION CONSIDERATIONS:
- * - Non-null fields are excluded from JSON response using @JsonInclude
- * - Proper date formatting for frontend consumption
- * - Null-safe conversions from entity to DTO
- */
 @Data @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class NotificationResponseDto {

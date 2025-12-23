@@ -18,10 +18,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -182,4 +189,56 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         return null;
     }
+
+    @Override
+    public List<EmployeeResponseDto> getEmployeeByDepartments(String id) {
+
+        Department department = departmentRepository.findById(UUID.fromString(id))
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id :" +id));
+
+        return employeeRepository.findByDepartment(department)
+                .stream()
+                .map(DtoMapper::toDto)
+                .toList();
+    }
+
+    @Override
+    public EmployeeResponseDto uploadAvatar(String employeeId, MultipartFile file) {
+
+        Employee employee = employeeRepository.findById(UUID.fromString(employeeId))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Employee not found with id " + employeeId));
+
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("Uploaded file is empty");
+        }
+
+        try {
+            String uploadDir = "uploads/avatars/";
+            Files.createDirectories(Paths.get(uploadDir));
+
+            String extension = "";
+
+            String originalName = file.getOriginalFilename();
+            if (originalName != null && originalName.contains(".")) {
+                extension = originalName.substring(originalName.lastIndexOf("."));
+            }
+
+            String fileName = employeeId + "_" + System.currentTimeMillis() + extension;
+
+            Path filePath = Paths.get(uploadDir, fileName);
+
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+            employee.setAvatar("/uploads/avatars/" + fileName);
+            employeeRepository.save(employee);
+
+            return DtoMapper.toDto(employee);
+
+        } catch (Exception e) {
+            e.printStackTrace(); // IMPORTANT
+            throw new RuntimeException("Failed to upload avatar: " + e.getMessage(), e);
+        }
+    }
+
 }

@@ -11,6 +11,9 @@ import com.hrms.hrm.dto.NotificationResponseDto;
 import com.hrms.hrm.model.EodReport;
 import com.hrms.hrm.dto.EodResponseDto;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 public class DtoMapper {
 
     /* ================= EMPLOYEE ================= */
@@ -24,6 +27,7 @@ public class DtoMapper {
                 .email(employee.getEmail())
                 .phone(employee.getPhone())
                 .address(employee.getAddress())
+                .avatar(employee.getAvatar())
                 .designation(employee.getDesignation())
                 .joiningDate(employee.getJoiningDate())
                 .dateOfBirth(employee.getDateOfBirth())
@@ -68,19 +72,37 @@ public class DtoMapper {
     /* ================= ATTENDANCE ================= */
 
     public static AttendanceResponseDto toDto(Attendance attendance) {
+        if (attendance == null) return null;
+
+        LocalDateTime checkIn = attendance.getCheckInTime();
+        LocalDateTime checkOut = attendance.getCheckOutTime() != null ? attendance.getCheckOutTime() : LocalDateTime.now();
+        long workedMinutes = 0;
+
+        if (checkIn != null) {
+            workedMinutes = Duration.between(checkIn, checkOut).toMinutes();
+
+            if (attendance.getBreakMinutes() != null) {
+                workedMinutes -= attendance.getBreakMinutes();
+            }
+            if (workedMinutes < 0) workedMinutes = 0;
+        }
+
+        String workedTimeFormatted = String.format("%02d:%02d", workedMinutes / 60, workedMinutes % 60);
+
         return AttendanceResponseDto.builder()
                 .id(attendance.getId())
                 .employeeId(attendance.getEmployee().getId())
-                .checkInTime(attendance.getCheckInTime())
-                .checkOutTime(attendance.getCheckOutTime())
-                .attendanceStatus(String.valueOf(attendance.getStatus()))
-                .workedTime(attendance.getWorkedTime())
-                .date(attendance.getDate())
-                .employeeCode(attendance.getEmployee().getEmployeeId())
                 .firstName(attendance.getEmployee().getFirstName())
                 .lastName(attendance.getEmployee().getLastName())
+                .employeeCode(attendance.getEmployee().getEmployeeId())
+                .date(attendance.getDate())
+                .checkInTime(attendance.getCheckInTime())
+                .checkOutTime(attendance.getCheckOutTime())
+                .attendanceStatus(attendance.getStatus().name())
+                .workedTime(workedTimeFormatted)
                 .build();
     }
+
 
     /* ================= TASK ================= */
 

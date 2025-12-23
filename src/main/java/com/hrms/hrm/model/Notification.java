@@ -57,7 +57,8 @@ public class Notification {
     public enum NotificationType { 
         INFO,
         WARNING,
-        ALERT
+        ALERT,
+        TASK
     }
 
 

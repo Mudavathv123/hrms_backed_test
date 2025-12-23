@@ -5,8 +5,10 @@ import com.hrms.hrm.dto.EmployeeRequestDto;
 import com.hrms.hrm.dto.EmployeeResponseDto;
 import com.hrms.hrm.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,4 +45,24 @@ public class EmployeeController {
     public ResponseEntity<ApiResponse<Void>> deleteMapping(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.success(employeeService.deleteEmployeeById(UUID.fromString(id)), "The employee deleted successfully..."));
     }
+
+    @GetMapping("/department/{id}")
+    public ResponseEntity<ApiResponse<List<EmployeeResponseDto>>> getEmployeeByDepartments(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.success(employeeService.getEmployeeByDepartments(id)));
+    }
+
+    @PostMapping(
+            value = "/{id}/avatar",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<ApiResponse<EmployeeResponseDto>> uploadAvatar(
+            @PathVariable String id,
+            @RequestParam("avatar") MultipartFile file
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.success(employeeService.uploadAvatar(id, file),
+                        "Avatar uploaded successfully")
+        );
+    }
+
 }

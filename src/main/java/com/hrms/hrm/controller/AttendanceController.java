@@ -2,11 +2,14 @@ package com.hrms.hrm.controller;
 
 import com.hrms.hrm.config.ApiResponse;
 import com.hrms.hrm.dto.AttendanceResponseDto;
+import com.hrms.hrm.dto.WeeklyAttendanceResponseDto;
 import com.hrms.hrm.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.loader.ast.spi.Loadable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,4 +57,19 @@ public class AttendanceController {
     public ResponseEntity<ApiResponse<List<AttendanceResponseDto>>>  getAttendanceByDate(@RequestParam String date) {
         return ResponseEntity.ok(ApiResponse.success(attendanceService.getAttendanceByDate(date), "selected date attendance fetched success"));
     }
+
+    @GetMapping("/weekly")
+    public ResponseEntity<ApiResponse<WeeklyAttendanceResponseDto>> getWeeklyAttendance(
+            @RequestParam(required = false) UUID employeeId,
+            @RequestParam String weekStart
+    ) {
+        LocalDate startDate = LocalDate.parse(weekStart);
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        attendanceService.getWeeklyAttendance(employeeId, startDate)
+                        , "weekly attendance fetched successfully"
+                )
+        );
+    }
+
 }

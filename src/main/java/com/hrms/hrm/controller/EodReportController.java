@@ -35,10 +35,10 @@ public class EodReportController {
         );
     }
 
-    @GetMapping("/employee/{code}")
-    public ResponseEntity<ApiResponse<List<EodResponseDto>>> getByEmployee(@PathVariable String code) {
+    @GetMapping("/employee/{employeeId}")
+    public ResponseEntity<ApiResponse<List<EodResponseDto>>> getByEmployee(@PathVariable String employeeId) {
         return ResponseEntity.ok(
-                ApiResponse.success(eodReportService.getEmployeeEods(code), "Employee EODs Fetched")
+                ApiResponse.success(eodReportService.getEmployeeEods(employeeId), "Employee EODs Fetched")
         );
     }
 

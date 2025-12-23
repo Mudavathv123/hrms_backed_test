@@ -89,8 +89,15 @@
                             .requestMatchers(HttpMethod.GET, "/api/employees/get-all-employees")
                             .hasAnyRole("ADMIN", "HR", "MANAGER")
 
-                            .requestMatchers(HttpMethod.GET, "/api/employees/{id}")
+                            .requestMatchers(HttpMethod.GET, "/api/employees/{idt}")
                             .hasAnyRole("ADMIN", "HR", "MANAGER", "EMPLOYEE")
+
+                            .requestMatchers(HttpMethod.GET, "/api/employees/department/**")
+                            .hasAnyRole("HR", "ADMIN")
+
+                            .requestMatchers(HttpMethod.POST, "/api/employees/*/avatar").authenticated()
+                            .requestMatchers("/uploads/**").permitAll()
+
 
                             // ---------------- ATTENDANCE ----------------
                             .requestMatchers("/api/attendance/**")

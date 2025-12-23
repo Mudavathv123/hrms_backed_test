@@ -51,6 +51,9 @@ public class Employee {
     @JsonBackReference
     private Department department;
 
+    @Column(name = "avatar")
+    private String avatar;
+
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonManagedReference
     private List<Attendance> attendanceList;

@@ -50,6 +50,18 @@ public class Attendance {
     @Column(name = "work_time")
     private String workedTime;
 
+    @Column(name = "total_minutes")
+    private Long totalMinutes;
+
+    @Column(name = "breaks_minutes")
+    private Long breakMinutes;
+
+    @Column(name = "overtime_minutes")
+    private Long overtimeMinutes;
+
+    private Boolean lateLogin;
+
+
     public enum AttendanceStatus {
         PRESENT,
         ABSENT,

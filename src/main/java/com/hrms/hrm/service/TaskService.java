@@ -20,4 +20,5 @@ public interface TaskService {
     TaskResponseDto updateTaskStatus(UUID taskId, TaskStatusUpdateDto request);
 
     void deleteTask(UUID taskId);
+
 }
