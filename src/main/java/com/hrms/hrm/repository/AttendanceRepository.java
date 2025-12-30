@@ -23,10 +23,9 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
 
     @Query("SELECT a FROM Attendance a WHERE a.employee.id = :employeeId AND a.date BETWEEN :start AND :end")
     List<Attendance> findWeeklyAttendance(
-           @Param("employeeId") UUID employeeId,
-           @Param("start") LocalDate start,
-           @Param("end")  LocalDate end
-    );
+            @Param("employeeId") UUID employeeId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
 
     @Query("SELECT a FROM Attendance a WHERE a.date = :date AND a.checkInTime IS NOT NULL AND a.checkOutTime IS NULL")
     List<Attendance> findByDateAndCheckedInWithoutCheckout(@Param("date") LocalDate date);
@@ -39,23 +38,31 @@ public interface AttendanceRepository extends JpaRepository<Attendance, UUID> {
 
     Optional<Attendance> findTopByEmployeeIdAndDateBeforeOrderByDateDesc(
             UUID employeeId,
-            LocalDate date
-    );
+            LocalDate date);
 
     @Query("""
-    SELECT a
-    FROM Attendance a
-    WHERE a.date = (
-        SELECT MAX(a2.date)
-        FROM Attendance a2
-        WHERE a2.employee.id = a.employee.id
-        AND a2.date < :date
-    )
-""")
+                SELECT a
+                FROM Attendance a
+                WHERE a.date = (
+                    SELECT MAX(a2.date)
+                    FROM Attendance a2
+                    WHERE a2.employee.id = a.employee.id
+                    AND a2.date < :date
+                )
+            """)
     List<Attendance> findLatestAttendancePerEmployeeBefore(@Param("date") LocalDate date);
 
-
-
-
+    @Query("""
+                SELECT COUNT(a)
+                FROM Attendance a
+                WHERE a.employee.id = :employeeId
+                  AND a.status = 'PRESENT'
+                  AND MONTH(a.date) = :month
+                  AND YEAR(a.date) = :year
+            """)
+    int countPresentDays(
+            @Param("employeeId") UUID employeeId,
+            @Param("month") int month,
+            @Param("year") int year);
 
 }

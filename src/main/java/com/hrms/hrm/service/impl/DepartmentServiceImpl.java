@@ -2,7 +2,6 @@ package com.hrms.hrm.service.impl;
 
 import com.hrms.hrm.dto.DepartmentRequestDto;
 import com.hrms.hrm.dto.DepartmentResponseDto;
-import com.hrms.hrm.dto.EmployeeRequestDto;
 import com.hrms.hrm.error.ResourceNotFoundException;
 import com.hrms.hrm.model.Department;
 import com.hrms.hrm.repository.DepartmentRepository;

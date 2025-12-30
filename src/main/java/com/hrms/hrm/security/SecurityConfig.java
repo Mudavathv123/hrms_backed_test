@@ -53,6 +53,7 @@
             CorsConfiguration config = new CorsConfiguration();
             config.setAllowedOrigins(List.of(
                     "http://localhost:3000",
+                    "http://localhost:3001",
                     "http://localhost:5173",
                     "http://localhost:4200",
                 "https://d1ujpx8cjlbvx.cloudfront.net"
@@ -82,6 +83,7 @@
                             .requestMatchers("/ws/**").permitAll()
 
                             // Auth
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                             .requestMatchers("/auth/signup").hasRole("ADMIN")
                             .requestMatchers("/auth/**").permitAll()
                             .requestMatchers(HttpMethod.POST,"/auth/reset-password").hasRole("ADMIN")
@@ -169,6 +171,9 @@
 
                             .requestMatchers(HttpMethod.GET, "/api/eod/**")
                             .authenticated()
+
+                            .requestMatchers("/api/payroll/salary-structure")
+                            .hasAnyRole("ADMIN", "HR")
 
                             // DEFAULT
                             .anyRequest().authenticated()

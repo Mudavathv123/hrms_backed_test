@@ -1,80 +1,80 @@
-package com.hrms.hrm.model;
+    package com.hrms.hrm.model;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+    import jakarta.persistence.*;
+    import lombok.AllArgsConstructor;
+    import lombok.Builder;
+    import lombok.Data;
+    import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-import java.util.UUID;
+    import java.time.LocalDate;
+    import java.util.UUID;
 
-@Entity
-@Table(name = "leaves")
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
-public class Leave {
+    @Entity
+    @Table(name = "leaves")
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @Builder
+    public class Leave {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+        @Id
+        @GeneratedValue(strategy = GenerationType.UUID)
+        private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "employee_id", nullable = false)
-    private Employee employee;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "employee_id", nullable = false)
+        private Employee employee;
 
-    @Column(nullable = false)
-    private LocalDate startDate;
+        @Column(nullable = false)
+        private LocalDate startDate;
 
-    @Column(nullable = false)
-    private LocalDate endDate;
+        @Column(nullable = false)
+        private LocalDate endDate;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private LeaveType leaveType;
+        @Enumerated(EnumType.STRING)
+        @Column(nullable = false)
+        private LeaveType leaveType;
 
-    @Column(length = 500)
-    private String reason;
+        @Column(length = 500)
+        private String reason;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private LeaveStatus status;
+        @Enumerated(EnumType.STRING)
+        @Column(nullable = false)
+        private LeaveStatus status;
 
-    @Column(length = 500)
-    private String managerComment;
+        @Column(length = 500)
+        private String managerComment;
 
-    @Column(nullable = false)
-    private LocalDate appliedOn;
+        @Column(nullable = false)
+        private LocalDate appliedOn;
 
-    private LocalDate actionOn;
+        private LocalDate actionOn;
 
-    @Column(nullable = false)
-    private int days;
+        @Column(nullable = false)
+        private int days;
 
-    public enum LeaveType {
-        SICK,
-        CASUAL,
-        ANNUAL,
-        UNPAID,
-        MATERNITY,
-        PATERNITY,
-        OTHER
-    }
+        public enum LeaveType {
+            SICK,
+            CASUAL,
+            ANNUAL,
+            UNPAID,
+            MATERNITY,
+            PATERNITY,
+            OTHER
+        }
 
-    public enum LeaveStatus {
-        PENDING,
-        APPROVED,
-        REJECTED,
-        CANCELLED
-    }
+        public enum LeaveStatus {
+            PENDING,
+            APPROVED,
+            REJECTED,
+            CANCELLED
+        }
 
-    @PrePersist
-    @PreUpdate
-    public void calculateDays() {
-        if(startDate != null && endDate !=null) {
-            this.days = (int) (endDate.toEpochDay() - startDate.toEpochDay() + 1);
+        @PrePersist
+        @PreUpdate
+        public void calculateDays() {
+            if(startDate != null && endDate !=null) {
+                this.days = (int) (endDate.toEpochDay() - startDate.toEpochDay() + 1);
+            }
         }
     }
-}
