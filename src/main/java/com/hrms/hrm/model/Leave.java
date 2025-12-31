@@ -58,6 +58,7 @@
             CASUAL,
             ANNUAL,
             UNPAID,
+            PAID,
             MATERNITY,
             PATERNITY,
             OTHER

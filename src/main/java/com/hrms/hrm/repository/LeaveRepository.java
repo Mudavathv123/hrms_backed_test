@@ -16,25 +16,42 @@ import java.util.UUID;
 @Repository
 public interface LeaveRepository extends JpaRepository<Leave, UUID> {
 
-    List<Leave> findByEmployeeId(UUID employeeId);
+        List<Leave> findByEmployeeId(UUID employeeId);
 
-    List<Leave> findByEmployeeIdAndStatus(UUID employeeId, LeaveStatus status);
+        List<Leave> findByEmployeeIdAndStatus(UUID employeeId, LeaveStatus status);
 
-    List<Leave> findByStatus(LeaveStatus status);
+        List<Leave> findByStatus(LeaveStatus status);
 
-    @Query("""
-                SELECT COALESCE(SUM(l.days), 0)
-                FROM Leave l
-                WHERE l.employee.id = :employeeId
-                  AND l.leaveType = :leaveType
-                  AND l.status = :status
-                  AND l.startDate <= :monthEnd
-                  AND l.endDate >= :monthStart
-            """)
-    int countUnpaidLeaveDays(
-            @Param("employeeId") UUID employeeId,
-            @Param("leaveType") LeaveType leaveType,
-            @Param("status") LeaveStatus status,
-            @Param("monthStart") LocalDate monthStart,
-            @Param("monthEnd") LocalDate monthEnd);
+        @Query("""
+                            SELECT COALESCE(SUM(l.days), 0)
+                            FROM Leave l
+                            WHERE l.employee.id = :employeeId
+                              AND l.leaveType = :leaveType
+                              AND l.status = :status
+                              AND l.startDate <= :monthEnd
+                              AND l.endDate >= :monthStart
+                        """)
+        int countUnpaidLeaveDays(
+                        @Param("employeeId") UUID employeeId,
+                        @Param("leaveType") LeaveType leaveType,
+                        @Param("status") LeaveStatus status,
+                        @Param("monthStart") LocalDate monthStart,
+                        @Param("monthEnd") LocalDate monthEnd);
+
+        @Query("""
+                        SELECT COALESCE(SUM(l.days), 0)
+                        FROM Leave l
+                        WHERE l.employee.id = :employeeId
+                          AND l.leaveType = :leaveType
+                          AND l.status = :status
+                          AND l.startDate <= :endDate
+                          AND l.endDate >= :startDate
+                        """)
+        int sumLeaveDays(
+                        UUID employeeId,
+                        Leave.LeaveType leaveType,
+                        Leave.LeaveStatus status,
+                        LocalDate startDate,
+                        LocalDate endDate);
+
 }

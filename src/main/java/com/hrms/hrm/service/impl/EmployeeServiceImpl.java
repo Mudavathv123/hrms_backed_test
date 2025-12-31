@@ -26,10 +26,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -245,16 +241,15 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .bucket(bucketName)
                     .key(key)
                     .contentType(file.getContentType())
-                    .acl(ObjectCannedACL.PUBLIC_READ) 
                     .build();
 
             s3Client.putObject(
                     putObjectRequest,
                     RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
-            String s3Url = "https://" + bucketName + ".s3.amazonaws.com/" + key;
+            String cloudFontUrl = "https://d1ujpx8cjlbvx.cloudfront.net/" +key;
 
-            employee.setAvatar(s3Url);
+            employee.setAvatar(cloudFontUrl);
             employeeRepository.save(employee);
 
             return DtoMapper.toDto(employee);

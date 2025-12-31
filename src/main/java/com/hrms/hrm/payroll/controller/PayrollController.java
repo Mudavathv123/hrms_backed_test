@@ -10,6 +10,9 @@ import java.util.UUID;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,9 +32,11 @@ import com.hrms.hrm.payroll.model.PaySlip;
 import com.hrms.hrm.payroll.model.Payroll;
 import com.hrms.hrm.payroll.model.Payroll.PayrollStatus;
 import com.hrms.hrm.payroll.model.PayrollDeduction;
+import com.hrms.hrm.payroll.model.SalaryStructure;
 import com.hrms.hrm.payroll.repository.PayrollDeductionRepository;
 import com.hrms.hrm.payroll.repository.PayrollRepository;
 import com.hrms.hrm.payroll.repository.PayslipRepository;
+import com.hrms.hrm.payroll.repository.SalaryStructureRepository;
 import com.hrms.hrm.payroll.service.PayrollService;
 import com.hrms.hrm.repository.EmployeeRepository;
 
@@ -46,6 +51,7 @@ public class PayrollController {
     private final PayrollRepository payrollRepository;
     private final PayslipRepository payslipRepository;
     private final PayrollDeductionRepository deductionRepository;
+    private final SalaryStructureRepository salaryStructureRepository;
     private final EmployeeRepository employeeRepository;
 
     @PostMapping("/generate")
@@ -58,17 +64,57 @@ public class PayrollController {
 
     @GetMapping("/{payrollId}")
     public ResponseEntity<ApiResponse<PayrollDetailsResponse>> getPayrollDetails(@PathVariable UUID payrollId) {
+
         Payroll payroll = payrollRepository.findById(payrollId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payroll not found"));
 
-        List<PayrollDeduction> deductions = deductionRepository.findByPayrollId(payrollId);
+        SalaryStructure salary = salaryStructureRepository.findByEmployeeId(payroll.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Salary structure not found"));
 
-        PayrollDetailsResponse response = new PayrollDetailsResponse();
+        List<PayrollDeduction> deductionList = deductionRepository.findByPayrollId(payrollId);
 
-        response.setPayroll(payroll);
-        response.setDeductions(deductions);
+        BigDecimal tax = BigDecimal.ZERO;
+        BigDecimal pf = BigDecimal.ZERO;
+        BigDecimal lop = BigDecimal.ZERO;
 
-        return ResponseEntity.ok(ApiResponse.success(response, "fetched payroll details successfully"));
+        for (PayrollDeduction d : deductionList) {
+            switch (d.getDeductionType()) {
+                case "TAX" -> tax = d.getAmount();
+                case "PF" -> pf = d.getAmount();
+                case "LOSS_OF_PAY" -> lop = d.getAmount();
+            }
+        }
+
+        PayrollDetailsResponse res = new PayrollDetailsResponse();
+
+        res.setPayrollId(payroll.getId());
+        res.setEmployeeId(payroll.getEmployeeId());
+        res.setMonth(payroll.getMonth());
+        res.setYear(payroll.getYear());
+        res.setWorkingDays(payroll.getWorkingDays());
+        res.setPresentDays(payroll.getPresentDays());
+        res.setPaidLeaveDays(payroll.getPaidLeaveDays());
+        res.setUnpaidLeaveDays(payroll.getUnpaidLeaveDays());
+        res.setGrossSalary(payroll.getGrossSalary());
+        res.setNetSalary(payroll.getNetSalary());
+        res.setStatus(payroll.getStatus().name());
+
+        PayrollDetailsResponse.Earnings earnings = new PayrollDetailsResponse.Earnings();
+        earnings.setBasic(salary.getBasic());
+        earnings.setHra(salary.getHra());
+        earnings.setAllowance(salary.getAllowance());
+
+        PayrollDetailsResponse.Deductions deductions = new PayrollDetailsResponse.Deductions();
+        deductions.setTax(tax);
+        deductions.setPf(pf);
+        deductions.setLossOfPay(lop);
+        deductions.setTotal(payroll.getTotalDeductions());
+
+        res.setEarnings(earnings);
+        res.setDeductions(deductions);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(res, "Fetched payroll details successfully"));
     }
 
     @GetMapping("/payslip/{payrollId}/download")
@@ -132,6 +178,18 @@ public class PayrollController {
     @GetMapping("/pending-approvals")
     public List<Payroll> getPendingApprovals() {
         return payrollRepository.findByStatus(PayrollStatus.PENDING_APPROVAL);
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<ApiResponse<Page<Payroll>>> getPayrollHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Payroll> payrollPage = payrollRepository.findAll(pageable);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(payrollPage, "Payroll history fetched successfully"));
     }
 
 }

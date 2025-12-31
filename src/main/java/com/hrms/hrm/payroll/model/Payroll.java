@@ -22,7 +22,12 @@ public class Payroll {
     private int month;
     private int year;
 
+    @Column(name = "total_working_days", nullable = false)
+    private int totalWorkingDays;
+
+    @Column(name = "working_days", nullable = false)
     private int workingDays;
+
     private int presentDays;
 
     private BigDecimal grossSalary;
@@ -35,6 +40,12 @@ public class Payroll {
 
     @Enumerated(EnumType.STRING)
     private PayrollStatus status;
+
+    @Column(name = "paid_leave_days", nullable = false)
+    private int paidLeaveDays;
+
+    @Column(name = "unpaid_leave_days", nullable = false)
+    private int unpaidLeaveDays;
 
     private LocalDateTime approvedAt;
     private UUID approvedBy;

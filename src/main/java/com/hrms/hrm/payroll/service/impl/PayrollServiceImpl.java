@@ -15,7 +15,6 @@ import com.hrms.hrm.payroll.model.PaySlip;
 import com.hrms.hrm.payroll.model.Payroll;
 import com.hrms.hrm.payroll.model.PayrollDeduction;
 import com.hrms.hrm.payroll.model.SalaryStructure;
-import com.hrms.hrm.payroll.model.Payroll.PayrollStatus;
 import com.hrms.hrm.payroll.repository.PayrollDeductionRepository;
 import com.hrms.hrm.payroll.repository.PayrollRepository;
 import com.hrms.hrm.payroll.repository.PayslipRepository;
@@ -44,17 +43,17 @@ public class PayrollServiceImpl implements PayrollService {
         @Override
         public Payroll generatePayroll(UUID employeeId, int month, int year) {
 
-                // 1️⃣ Prevent duplicate payroll
+                // Prevent duplicate payroll
                 payrollRepository.findByEmployeeIdAndMonthAndYear(employeeId, month, year)
                                 .ifPresent(p -> {
                                         throw new IllegalStateException("Payroll already generated for this month");
                                 });
 
-                // 2️⃣ Fetch salary structure
+                // Fetch salary structure
                 SalaryStructure salary = salaryStructureRepository.findByEmployeeId(employeeId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Salary structure not found"));
 
-                // 3️⃣ Attendance & Leave
+                // Attendance & Leave
                 LocalDate monthStart = LocalDate.of(year, month, 1);
                 LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
 
@@ -66,9 +65,30 @@ public class PayrollServiceImpl implements PayrollService {
                                 monthStart,
                                 monthEnd);
 
-                int lopDays = unpaidLeaves;
+                int paidLeaveDays = leaveRepository.sumLeaveDays(
+                                employeeId,
+                                Leave.LeaveType.PAID,
+                                Leave.LeaveStatus.APPROVED,
+                                monthStart,
+                                monthEnd);
 
-                // 4️⃣ Salary calculation
+                int unpaidLeaveDays = leaveRepository.sumLeaveDays(
+                                employeeId,
+                                Leave.LeaveType.UNPAID,
+                                Leave.LeaveStatus.APPROVED,
+                                monthStart,
+                                monthEnd);
+
+                int absentDays = WORKING_DAYS - presentDays - paidLeaveDays - unpaidLeaveDays;
+                if (absentDays < 0)
+                        absentDays = 0;
+
+                if (paidLeaveDays < 0)
+                        paidLeaveDays = 0;
+
+                int lopDays = unpaidLeaveDays + absentDays;
+
+                // Salary calculation
                 BigDecimal monthlySalary = salary.getBasic()
                                 .add(salary.getHra())
                                 .add(salary.getAllowance());
@@ -92,7 +112,7 @@ public class PayrollServiceImpl implements PayrollService {
                 BigDecimal totalDeduction = pf.add(tax).add(lopAmount);
                 BigDecimal netSalary = grossSalary.subtract(totalDeduction);
 
-                // 5️⃣ Save Payroll
+                // Save Payroll
                 Payroll payroll = new Payroll();
                 payroll.setEmployeeId(employeeId);
                 payroll.setMonth(month);
@@ -102,23 +122,25 @@ public class PayrollServiceImpl implements PayrollService {
                 payroll.setGrossSalary(grossSalary);
                 payroll.setTotalDeductions(totalDeduction);
                 payroll.setNetSalary(netSalary);
+                payroll.setPaidLeaveDays(Math.max(paidLeaveDays, 0));
+                payroll.setUnpaidLeaveDays(unpaidLeaveDays);
                 payroll.setStatus(Payroll.PayrollStatus.GENERATED);
 
                 payroll = payrollRepository.save(payroll);
 
-                // 6️⃣ Save deductions
+                // Save deductions
                 saveDeduction(payroll, "PF", pf);
                 saveDeduction(payroll, "TAX", tax);
                 saveDeduction(payroll, "LOSS_OF_PAY", lopAmount);
 
-                // 7️⃣ Generate Payslip PDF
+                // Generate Payslip PDF
                 List<PayrollDeduction> deductions = payrollDeductionRepository.findByPayrollId(payroll.getId());
 
-                String employeeName = "Employee-" + employeeId; // replace later
+                String employeeName = "Employee-" + employeeId; 
 
                 try {
                         String pdfPath = PayslipPdfGenerator.generatePayslip(
-                                        payroll, deductions, employeeName);
+                                        payroll, salary, deductions, employeeName);
 
                         PaySlip paySlip = new PaySlip();
                         paySlip.setPayroll(payroll);
