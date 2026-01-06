@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.hrms.hrm.model.User;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -48,7 +50,12 @@ public class Payroll {
     private int unpaidLeaveDays;
 
     private LocalDateTime approvedAt;
-    private UUID approvedBy;
+
+    @ManyToOne
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
+
+    private LocalDateTime paidAt;
 
     public enum PayrollStatus {
         GENERATED,

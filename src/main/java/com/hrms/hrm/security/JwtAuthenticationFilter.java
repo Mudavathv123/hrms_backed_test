@@ -26,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final CustomUserDetailsService customUserDetailsService;
 
-    private static final String[] PUBLIC_ENDPOINTS = { "/auth/login", "/auth/signup", "/error" };
+    private static final String[] PUBLIC_ENDPOINTS = { "/auth/login", "/error" };
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {

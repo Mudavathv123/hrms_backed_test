@@ -271,7 +271,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         WeeklySummaryDto summary = new WeeklySummaryDto(present, halfDay, leave, weekend, present + halfDay + leave);
         return new WeeklyAttendanceResponseDto(result, summary);
     }
-
+  
 
     @Override
     public void autoCheckoutEndOfDay() {

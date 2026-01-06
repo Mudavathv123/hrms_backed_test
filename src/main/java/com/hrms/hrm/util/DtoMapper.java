@@ -7,9 +7,7 @@ import com.hrms.hrm.model.Employee;
 import com.hrms.hrm.model.Task;
 import com.hrms.hrm.model.Leave;
 import com.hrms.hrm.model.Notification;
-import com.hrms.hrm.dto.NotificationResponseDto;
 import com.hrms.hrm.model.EodReport;
-import com.hrms.hrm.dto.EodResponseDto;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -27,15 +25,17 @@ public class DtoMapper {
                 .email(employee.getEmail())
                 .phone(employee.getPhone())
                 .address(employee.getAddress())
-                .avatar(employee.getAvatar())
+                .avatar(
+                        employee.getAvatar() != null
+                                ? employee.getAvatar()
+                                : "https://d1ujpx8cjlbvx.cloudfront.net/defaults/avatar.png")
                 .designation(employee.getDesignation())
                 .joiningDate(employee.getJoiningDate())
                 .dateOfBirth(employee.getDateOfBirth())
                 .departmentName(
                         employee.getDepartment() != null
                                 ? employee.getDepartment().getName()
-                                : "Not Assigned"
-                )
+                                : "Not Assigned")
                 .build();
     }
 
@@ -72,10 +72,12 @@ public class DtoMapper {
     /* ================= ATTENDANCE ================= */
 
     public static AttendanceResponseDto toDto(Attendance attendance) {
-        if (attendance == null) return null;
+        if (attendance == null)
+            return null;
 
         LocalDateTime checkIn = attendance.getCheckInTime();
-        LocalDateTime checkOut = attendance.getCheckOutTime() != null ? attendance.getCheckOutTime() : LocalDateTime.now();
+        LocalDateTime checkOut = attendance.getCheckOutTime() != null ? attendance.getCheckOutTime()
+                : LocalDateTime.now();
         long workedMinutes = 0;
 
         if (checkIn != null) {
@@ -84,7 +86,8 @@ public class DtoMapper {
             if (attendance.getBreakMinutes() != null) {
                 workedMinutes -= attendance.getBreakMinutes();
             }
-            if (workedMinutes < 0) workedMinutes = 0;
+            if (workedMinutes < 0)
+                workedMinutes = 0;
         }
 
         String workedTimeFormatted = String.format("%02d:%02d", workedMinutes / 60, workedMinutes % 60);
@@ -102,7 +105,6 @@ public class DtoMapper {
                 .workedTime(workedTimeFormatted)
                 .build();
     }
-
 
     /* ================= TASK ================= */
 
@@ -140,6 +142,7 @@ public class DtoMapper {
                 .actionOn(leave.getActionOn())
                 .build();
     }
+
     public static NotificationResponseDto toDto(Notification n) {
         return NotificationResponseDto.builder()
                 .id(n.getId())

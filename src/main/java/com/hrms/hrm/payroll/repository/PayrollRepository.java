@@ -33,4 +33,14 @@ public interface PayrollRepository extends JpaRepository<Payroll, UUID> {
 
     Page<Payroll> findByStatus(Payroll.PayrollStatus status, Pageable pageable);
 
+    @Query("""
+                SELECT p
+                FROM Payroll p
+                WHERE p.year = :year
+            """)
+    List<Payroll> findByYear(@Param("year") int year);
+
+    List<Payroll> findByEmployeeIdAndYear(UUID employeeId, int year);
+
+
 }

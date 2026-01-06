@@ -1,7 +1,5 @@
 package com.hrms.hrm.payroll.dto;
 
-import java.util.List;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,8 +9,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class PayrollDashboardResponse {
-    private DashboardStats stats;
-    private List<SalaryTrendDTO> trends;
-    private List<PieChartDTO> salaryDistribution;
+public class DashboardStats {
+    private long totalEmployees;
+    private long totalPayrolls;
+    private long pendingApprovals;
+    private double totalPaid;
 }

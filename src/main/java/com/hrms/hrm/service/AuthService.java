@@ -137,7 +137,6 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid role. Allowed roles: Admin, HR, Manager");
         }
 
-        // Create User
         User newUser = User.builder()
                 .email(request.getEmail())
                 .username(request.getUsername())
@@ -156,7 +155,7 @@ public class AuthService {
             Employee employee = Employee.builder()
                     .employeeId(empId)
                     .firstName(request.getUsername())
-                    .lastName("") // optional
+                    .lastName("") 
                     .email(request.getEmail())
                     .phone("N/A")
                     .designation(role.name().replace("ROLE_", ""))

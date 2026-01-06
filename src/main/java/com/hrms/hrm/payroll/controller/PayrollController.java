@@ -14,8 +14,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,11 +25,13 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.hrms.hrm.config.ApiResponse;
 import com.hrms.hrm.error.ResourceNotFoundException;
 import com.hrms.hrm.payroll.dto.PayrollDashboardResponse;
 import com.hrms.hrm.payroll.dto.PayrollDetailsResponse;
+import com.hrms.hrm.payroll.dto.PayrollHistoryResponseDto;
 import com.hrms.hrm.payroll.model.PaySlip;
 import com.hrms.hrm.payroll.model.Payroll;
 import com.hrms.hrm.payroll.model.Payroll.PayrollStatus;
@@ -39,6 +43,7 @@ import com.hrms.hrm.payroll.repository.PayslipRepository;
 import com.hrms.hrm.payroll.repository.SalaryStructureRepository;
 import com.hrms.hrm.payroll.service.PayrollService;
 import com.hrms.hrm.repository.EmployeeRepository;
+import com.hrms.hrm.service.CustomUserDetailsService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -133,19 +138,18 @@ public class PayrollController {
     }
 
     @GetMapping("/dashboard")
-    public ApiResponse<PayrollDashboardResponse> dashboard(
-            @RequestParam int month,
+    public ResponseEntity<PayrollDashboardResponse> getDashboard(
             @RequestParam int year) {
+        return ResponseEntity.ok(
+                payrollService.getDashboard(year));
+    }
 
-        long employees = employeeRepository.count();
-        long payrolls = payrollRepository.count();
-        long pending = payrollRepository.countByStatus(Payroll.PayrollStatus.PENDING_APPROVAL);
-        BigDecimal totalPaid = Optional.ofNullable(payrollRepository.getTotalSalaryPaid(month, year))
-                .orElse(BigDecimal.ZERO);
-
-        return ApiResponse.success(
-                new PayrollDashboardResponse(employees, payrolls, totalPaid, pending),
-                "Payroll dashboard data");
+    @GetMapping("/employee/dashboard")
+    public ResponseEntity<PayrollDashboardResponse> getEmployeeDashboard(
+            @RequestParam UUID employeeId,
+            @RequestParam int year) {
+        return ResponseEntity.ok(
+                payrollService.getEmployeeDashboard(employeeId, year));
     }
 
     @GetMapping("/employee/{employeeId}")
@@ -162,16 +166,8 @@ public class PayrollController {
     }
 
     @PutMapping("/{payrollId}/approve")
-    public ApiResponse<String> approvePayroll(
-            @PathVariable UUID payrollId,
-            @RequestParam UUID approverId) {
-
-        Payroll p = payrollRepository.findById(payrollId).orElseThrow();
-        p.setStatus(PayrollStatus.APPROVED);
-        p.setApprovedBy(approverId);
-        p.setApprovedAt(LocalDateTime.now());
-        payrollRepository.save(p);
-
+    public ApiResponse<String> approvePayroll(@PathVariable UUID payrollId) {
+        payrollService.approvePayroll(payrollId);
         return ApiResponse.success("Payroll approved");
     }
 
@@ -180,16 +176,36 @@ public class PayrollController {
         return payrollRepository.findByStatus(PayrollStatus.PENDING_APPROVAL);
     }
 
+    @PutMapping("/{payrollId}/pay")
+    public ApiResponse<String> payPayroll(@PathVariable UUID payrollId) {
+
+        Payroll payroll = payrollRepository.findById(payrollId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payroll not found"));
+
+        if (payroll.getStatus() != PayrollStatus.APPROVED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Payroll must be approved before payment");
+
+        }
+
+        payroll.setStatus(PayrollStatus.PAID);
+        payroll.setPaidAt(LocalDateTime.now());
+
+        payrollRepository.save(payroll);
+
+        return ApiResponse.success("Payroll marked as PAID");
+    }
+
     @GetMapping("/history")
-    public ResponseEntity<ApiResponse<Page<Payroll>>> getPayrollHistory(
+    public ResponseEntity<ApiResponse<Page<PayrollHistoryResponseDto>>> getPayrollHistory(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Payroll> payrollPage = payrollRepository.findAll(pageable);
-
         return ResponseEntity.ok(
-                ApiResponse.success(payrollPage, "Payroll history fetched successfully"));
+                ApiResponse.success(
+                        payrollService.getPayrollHistory(page, size),
+                        "Payroll history fetched successfully"));
     }
 
 }

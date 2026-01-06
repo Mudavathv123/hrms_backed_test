@@ -1,6 +1,6 @@
 package com.hrms.hrm.payroll.dto;
 
-import java.util.List;
+import java.math.BigDecimal;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class PayrollDashboardResponse {
-    private DashboardStats stats;
-    private List<SalaryTrendDTO> trends;
-    private List<PieChartDTO> salaryDistribution;
+public class SalaryTrendDTO {
+    private String period;
+    private BigDecimal salary;
+    private BigDecimal tax;
 }

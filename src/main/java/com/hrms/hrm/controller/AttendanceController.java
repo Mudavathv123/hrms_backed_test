@@ -5,7 +5,6 @@ import com.hrms.hrm.dto.AttendanceResponseDto;
 import com.hrms.hrm.dto.WeeklyAttendanceResponseDto;
 import com.hrms.hrm.service.AttendanceService;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.loader.ast.spi.Loadable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
