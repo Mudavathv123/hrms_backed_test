@@ -45,4 +45,6 @@ public interface AttendanceService {
 
     WeeklySummaryDto getMyWeeklySummary(Authentication auth, LocalDate weekStart);
 
+    MonthlySummaryDto getAllMonthlyAttendance(int year, int month);
+
 }

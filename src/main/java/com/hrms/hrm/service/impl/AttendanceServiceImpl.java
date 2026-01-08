@@ -84,7 +84,12 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         LocalDate today = LocalDate.now();
 
-        if (attendanceRepository.existsByEmployeeIdAndDate(employeeId, today)) {
+        Attendance attendance = attendanceRepository
+                .findByEmployeeIdAndDate(employeeId, today)
+                .orElseThrow(() -> new RuntimeException(
+                        "Attendance row not initialized for today"));
+
+        if (attendance.getCheckInTime() != null) {
             throw new RuntimeException("Already checked in today");
         }
 
@@ -93,8 +98,6 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         boolean isWFH = wfhPolicyRepository.existsByIsGlobalTrueAndEnabledTrue()
                 || wfhPolicyRepository.existsByEmployee_IdAndEnabledTrue(employeeId);
-                
-        boolean isValidLocation = validateLocation(latitude, longitude);
 
         if (!isWFH) {
             if (latitude == null || longitude == null) {
@@ -102,25 +105,22 @@ public class AttendanceServiceImpl implements AttendanceService {
                         "Location permission required for office check-in");
             }
 
-            if (!isValidLocation) {
+            if (!validateLocation(latitude, longitude)) {
                 throw new InvalidLocationException(
                         "Outside allowed office location");
             }
         }
 
-        Attendance attendance = Attendance.builder()
-                .employee(employee)
-                .date(today)
-                .checkInTime(LocalDateTime.now())
-                .lateLogin(isLateLogin())
-                .status(Attendance.AttendanceStatus.PRESENT)
-                .latitude(isWFH ? null : latitude)
-                .longitude(isWFH ? null : longitude)
-                .locationName(isWFH ? "Work From Home" : locationName)
-                .isValidLocation(isValidLocation)
-                .build();
+        attendance.setCheckInTime(LocalDateTime.now());
+        attendance.setLateLogin(isLateLogin());
+        attendance.setStatus(Attendance.AttendanceStatus.PRESENT);
+        attendance.setLatitude(isWFH ? null : latitude);
+        attendance.setLongitude(isWFH ? null : longitude);
+        attendance.setLocationName(isWFH ? "Work From Home" : locationName);
+        attendance.setIsValidLocation(true);
 
         attendanceRepository.save(attendance);
+
         sendNotification(employee, "Check-In Recorded");
 
         return DtoMapper.toDto(attendance);
@@ -233,6 +233,22 @@ public class AttendanceServiceImpl implements AttendanceService {
                 : currentUser.getEmployee().getId();
 
         return calculateMonthlySummary(empId, year, month);
+    }
+
+    @Override
+    public MonthlySummaryDto getAllMonthlyAttendance(int year, int month) {
+
+        List<Employee> employees = employeeRepository.findAll();
+
+        MonthlySummaryDto overall = new MonthlySummaryDto(0, 0, 0, 0, 0);
+
+        for (Employee emp : employees) {
+            MonthlySummaryDto summary = calculateMonthlySummary(emp.getId(), year, month);
+
+            overall.add(summary);
+        }
+
+        return overall;
     }
 
     @Override
