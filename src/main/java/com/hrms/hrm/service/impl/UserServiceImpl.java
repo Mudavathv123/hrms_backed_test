@@ -59,7 +59,7 @@ public class UserServiceImpl implements UserService {
 
     private Long getLoggedUserId() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByUsername(username)
+        return userRepository.findByEmail(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with username : " +username))
                 .getId();
     }

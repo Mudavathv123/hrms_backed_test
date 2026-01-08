@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -25,10 +26,10 @@ public class AttendanceBreak {
     private Attendance attendance;
 
     @Column(name = "break_start")
-    private LocalDateTime breakStart;
+    private Instant breakStart;
 
     @Column(name = "break_end")
-    private LocalDateTime breakEnd;
+    private Instant breakEnd;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "break_type")

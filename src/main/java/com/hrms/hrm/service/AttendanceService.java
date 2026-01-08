@@ -1,31 +1,48 @@
-    package com.hrms.hrm.service;
+package com.hrms.hrm.service;
 
-    import com.hrms.hrm.dto.AttendanceResponseDto;
-    import com.hrms.hrm.dto.WeeklyAttendanceResponseDto;
+import com.hrms.hrm.dto.AttendanceResponseDto;
+import com.hrms.hrm.dto.MonthlySummaryDto;
+import com.hrms.hrm.dto.WeeklyAdminResponseDto;
+import com.hrms.hrm.dto.WeeklySummaryDto;
+import com.hrms.hrm.dto.WeeklyTimelineDto;
 
-    import java.time.LocalDate;
-    import java.util.List;
-    import java.util.UUID;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
-    public interface AttendanceService {
+import org.springframework.security.core.Authentication;
 
-        AttendanceResponseDto checkIn(UUID employeeId);
+public interface AttendanceService {
 
-        AttendanceResponseDto checkOut(UUID employeeId);
+    AttendanceResponseDto checkIn(UUID employeeId, Double latitude, Double longitude, String locationName);
 
-        AttendanceResponseDto getTodayAttendanceByEmployee(UUID employeeId);
+    AttendanceResponseDto checkOut(UUID employeeId);
 
-        List<AttendanceResponseDto> getAttendanceHistory(UUID employeeId);
+    AttendanceResponseDto getTodayAttendanceByEmployee(UUID employeeId);
 
-        List<AttendanceResponseDto> getMonthlyAttendance(UUID employeeId, int year, int month);
+    List<AttendanceResponseDto> getAttendanceHistory(UUID employeeId);
 
-        List<AttendanceResponseDto> getTodayAttendance();
+    MonthlySummaryDto getMonthlyAttendance(UUID employeeId, int year, int month);
 
-        List<AttendanceResponseDto> getAttendanceByDate(String date);
+    List<AttendanceResponseDto> getTodayAttendance();
 
-        WeeklyAttendanceResponseDto getWeeklyAttendance(UUID employeeId, LocalDate weekStart);
+    List<AttendanceResponseDto> getAttendanceByDate(String date);
 
-        void autoCheckoutEndOfDay();
+    WeeklyAdminResponseDto getWeeklyAttendance(UUID employeeId, LocalDate weekStart);
 
+    void autoCheckoutEndOfDay();
 
-    }
+    List<WeeklyTimelineDto> getWeeklyTimeline(
+            Authentication auth,
+            UUID employeeId,
+            LocalDate weekStart);
+
+    WeeklyAdminResponseDto getAllWeeklySummary(LocalDate weekStart);
+
+    List<WeeklyTimelineDto> getMyTimeline(Authentication auth, LocalDate weekStart);
+
+    List<WeeklyTimelineDto> getAllTimelines(LocalDate weekStart, UUID employeeId);
+
+    WeeklySummaryDto getMyWeeklySummary(Authentication auth, LocalDate weekStart);
+
+}
