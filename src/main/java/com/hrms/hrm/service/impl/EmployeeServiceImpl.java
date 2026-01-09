@@ -150,7 +150,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .message("Employee " + employee.getFirstName() + " " + employee.getLastName()
                                     + " has been updated.")
                             .senderId(null)
-                            .receiverId(null) // Could be broadcast to admins
+                            .receiverId(null) 
                             .targetRole("ROLE_ADMIN")
                             .build());
             log.info("Notification sent for updated employee: {}", employee.getEmail());

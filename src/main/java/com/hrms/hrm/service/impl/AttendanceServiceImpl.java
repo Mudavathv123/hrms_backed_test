@@ -8,6 +8,7 @@ import com.hrms.hrm.dto.WeeklyAdminResponseDto;
 import com.hrms.hrm.dto.WeeklyEmployeeSummaryDto;
 import com.hrms.hrm.dto.WeeklySummaryDto;
 import com.hrms.hrm.dto.WeeklyTimelineDto;
+import com.hrms.hrm.error.AlreadyCheckedInException;
 import com.hrms.hrm.error.InvalidLocationException;
 import com.hrms.hrm.error.LocationPermissionException;
 import com.hrms.hrm.error.ResourceNotFoundException;
@@ -26,6 +27,7 @@ import com.hrms.hrm.service.NotificationService;
 import com.hrms.hrm.util.DtoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -74,8 +76,6 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // ================= CHECK IN =================
-
-    @Override
     public AttendanceResponseDto checkIn(
             UUID employeeId,
             Double latitude,
@@ -84,17 +84,21 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         LocalDate today = LocalDate.now();
 
-        Attendance attendance = attendanceRepository
-                .findByEmployeeIdAndDate(employeeId, today)
-                .orElseThrow(() -> new RuntimeException(
-                        "Attendance row not initialized for today"));
-
-        if (attendance.getCheckInTime() != null) {
-            throw new RuntimeException("Already checked in today");
-        }
-
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        Attendance attendance = attendanceRepository
+                .findByEmployeeIdAndDate(employeeId, today)
+                .orElseGet(() -> {
+                    Attendance a = new Attendance();
+                    a.setEmployee(employee);
+                    a.setDate(today);
+                    return attendanceRepository.save(a);
+                });
+
+        if (attendance.getCheckInTime() != null) {
+            throw new AlreadyCheckedInException("Already checked in today");
+        }
 
         boolean isWFH = wfhPolicyRepository.existsByIsGlobalTrueAndEnabledTrue()
                 || wfhPolicyRepository.existsByEmployee_IdAndEnabledTrue(employeeId);
@@ -112,16 +116,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
 
         attendance.setCheckInTime(LocalDateTime.now());
-        attendance.setLateLogin(isLateLogin());
-        attendance.setStatus(Attendance.AttendanceStatus.PRESENT);
-        attendance.setLatitude(isWFH ? null : latitude);
-        attendance.setLongitude(isWFH ? null : longitude);
-        attendance.setLocationName(isWFH ? "Work From Home" : locationName);
-        attendance.setIsValidLocation(true);
+        attendance.setLatitude(latitude);
+        attendance.setLongitude(longitude);
+        attendance.setLocationName(locationName);
 
         attendanceRepository.save(attendance);
-
-        sendNotification(employee, "Check-In Recorded");
 
         return DtoMapper.toDto(attendance);
     }

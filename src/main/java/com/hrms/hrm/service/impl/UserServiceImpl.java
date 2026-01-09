@@ -43,7 +43,7 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Current password is incorrect");
         }
 
-        if(!request.getNewPassword().equals(request.getCurrentPassword())) {
+        if(!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("New password and confirm password do not match");
         }
 

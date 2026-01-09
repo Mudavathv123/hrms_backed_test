@@ -1,7 +1,6 @@
 package com.hrms.hrm.error;
 
 import com.hrms.hrm.config.ApiResponse;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -11,52 +10,76 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmployeeAlreadyExistException.class)
-    public ResponseEntity<ApiResponse<?>> handleEmployeeAlreadyExistException(EmployeeAlreadyExistException ex) {
-        ApiResponse<?> response = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    public ResponseEntity<ApiResponse<?>> handleEmployeeAlreadyExist(
+            EmployeeAlreadyExistException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiResponse<?>> handleResourceNotFoundException(ResourceNotFoundException ex) {
-        ApiResponse<?> response = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    public ResponseEntity<ApiResponse<?>> handleResourceNotFound(
+            ResourceNotFoundException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse<?>> handleBadCredentialsException(BadCredentialsException ex) {
-        ApiResponse<?> response = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    public ResponseEntity<ApiResponse<?>> handleBadCredentials(
+            BadCredentialsException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(AlreadyCheckedInException.class)
+    public ResponseEntity<ApiResponse<?>> handleAlreadyCheckedIn(
+            AlreadyCheckedInException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidLocationException.class)
-    public ResponseEntity<ApiResponse<?>> handleInvalidLocationException(
+    public ResponseEntity<ApiResponse<?>> handleInvalidLocation(
             InvalidLocationException ex) {
 
-        ApiResponse<?> response = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(LocationPermissionException.class)
-    public ResponseEntity<ApiResponse<?>> handleLocationPermissionException(
+    public ResponseEntity<ApiResponse<?>> handleLocationPermission(
             LocationPermissionException ex) {
 
-        ApiResponse<?> response = ApiResponse.error(ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(AttendanceNotAllowedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAttendanceNotAllowed(
+            AttendanceNotAllowedException ex) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<?>> handleAllExceptions(
-            Exception ex) {
+    public ResponseEntity<ApiResponse<?>> handleAllExceptions(Exception ex) {
 
-        ApiResponse<?> response = ApiResponse.error("Something went wrong. Please try again.");
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
+        // Log this in real projects
+        ex.printStackTrace();
 
-    static class ApiError {
-        public String message;
-
-        public ApiError(String message) {
-            this.message = message;
-        }
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Something went wrong. Please try again."));
     }
 }
