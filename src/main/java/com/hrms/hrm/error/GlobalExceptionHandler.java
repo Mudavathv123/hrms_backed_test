@@ -3,10 +3,10 @@ package com.hrms.hrm.error;
 import com.hrms.hrm.config.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@ControllerAdvice
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmployeeAlreadyExistException.class)
@@ -75,7 +75,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleAllExceptions(Exception ex) {
 
-        // Log this in real projects
         ex.printStackTrace();
 
         return ResponseEntity

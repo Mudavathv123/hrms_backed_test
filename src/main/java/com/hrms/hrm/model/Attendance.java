@@ -8,14 +8,15 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import software.amazon.awssdk.services.s3.endpoints.internal.Value.Bool;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-
+@Table(name = "attendance", uniqueConstraints = {
+        @UniqueConstraint(columnNames = { "employee_id", "date" })
+})
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -64,7 +65,6 @@ public class Attendance {
     private Long overtimeMinutes;
 
     private Boolean lateLogin;
-
 
     private Double latitude;
     private Double longitude;

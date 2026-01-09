@@ -16,6 +16,7 @@ import com.hrms.hrm.model.AllowedLocation;
 import com.hrms.hrm.model.Attendance;
 import com.hrms.hrm.model.Employee;
 import com.hrms.hrm.model.User;
+import com.hrms.hrm.model.Attendance.AttendanceStatus;
 import com.hrms.hrm.repository.AllowedLocationRepository;
 import com.hrms.hrm.repository.AttendanceBreakRepository;
 import com.hrms.hrm.repository.AttendanceRepository;
@@ -88,11 +89,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
         Attendance attendance = attendanceRepository
-                .findByEmployeeIdAndDate(employeeId, today)
+                .findFirstByEmployeeIdAndDate(employeeId, today)
                 .orElseGet(() -> {
                     Attendance a = new Attendance();
                     a.setEmployee(employee);
                     a.setDate(today);
+                    a.setStatus(Attendance.AttendanceStatus.ABSENT);
                     return attendanceRepository.save(a);
                 });
 

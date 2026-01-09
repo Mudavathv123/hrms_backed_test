@@ -156,7 +156,7 @@ public class SecurityConfig {
 
                         // ---------------- EOD ----------------
                         .requestMatchers(HttpMethod.POST, "/api/eod")
-                        .hasRole("EMPLOYEE")
+                        .hasAnyRole("EMPLOYEE","HR")
 
                         .requestMatchers(HttpMethod.POST, "/api/eod/**")
                         .hasAnyRole("HR", "ADMIN")
