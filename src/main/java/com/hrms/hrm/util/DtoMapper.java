@@ -103,6 +103,10 @@ public class DtoMapper {
                 .checkOutTime(attendance.getCheckOutTime())
                 .attendanceStatus(attendance.getStatus().name())
                 .workedTime(workedTimeFormatted)
+                .workMode(
+                        attendance.getWorkMode() != null
+                                ? attendance.getWorkMode().name()
+                                : "OFFICE")
                 .build();
     }
 

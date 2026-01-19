@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.UUID;
 
 @Data
@@ -27,4 +26,6 @@ public class AttendanceResponseDto {
     private String firstName;
     private String lastName;
     private String employeeCode;
+    private String workMode;
+
 }

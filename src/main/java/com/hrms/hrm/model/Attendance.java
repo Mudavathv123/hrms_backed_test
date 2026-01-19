@@ -46,6 +46,11 @@ public class Attendance {
     @Column(name = "attendance_status")
     private AttendanceStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "work_mode")
+    @Builder.Default
+    private WorkMode workMode = WorkMode.OFFICE;
+
     @Column(name = "hours_worked")
     private Long hoursWorked;
 
@@ -76,7 +81,14 @@ public class Attendance {
         ABSENT,
         HALF_DAY,
         LATE,
-        ON_LEAVE
+        ON_LEAVE,
+        WEEKEND,
+        HOLIDAY
+    }
+
+    public enum WorkMode {
+        OFFICE,
+        WFH
     }
 
 }

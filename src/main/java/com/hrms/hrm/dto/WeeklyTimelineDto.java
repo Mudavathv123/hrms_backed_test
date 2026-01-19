@@ -23,4 +23,7 @@ public class WeeklyTimelineDto {
     private String attendanceStatus;
     private Integer totalMinutes;
     private Integer overtimeMinutes;
+    private boolean isLate;
+    private String workMode; // WFH / OFFICE
+
 }

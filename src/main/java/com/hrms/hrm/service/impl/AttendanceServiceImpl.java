@@ -16,11 +16,11 @@ import com.hrms.hrm.model.AllowedLocation;
 import com.hrms.hrm.model.Attendance;
 import com.hrms.hrm.model.Employee;
 import com.hrms.hrm.model.User;
-import com.hrms.hrm.model.Attendance.AttendanceStatus;
 import com.hrms.hrm.repository.AllowedLocationRepository;
 import com.hrms.hrm.repository.AttendanceBreakRepository;
 import com.hrms.hrm.repository.AttendanceRepository;
 import com.hrms.hrm.repository.EmployeeRepository;
+import com.hrms.hrm.repository.HolidayRepository;
 import com.hrms.hrm.repository.UserRepository;
 import com.hrms.hrm.repository.WfhPolicyRepository;
 import com.hrms.hrm.service.AttendanceService;
@@ -48,7 +48,10 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceBreakRepository breakRepository;
     private final UserRepository userRepository;
     private final WfhPolicyRepository wfhPolicyRepository;
+    private final HolidayRepository holidayRepository;
     private final AllowedLocationRepository allowedLocationRepository;
+
+    private static final LocalTime OFFICE_START_TIME = LocalTime.of(9, 30);
 
     private boolean validateLocation(Double lat, Double lon) {
         List<AllowedLocation> allowedLocations = allowedLocationRepository.findAll();
@@ -90,13 +93,13 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         Attendance attendance = attendanceRepository
                 .findFirstByEmployeeIdAndDate(employeeId, today)
-                .orElseGet(() -> {
-                    Attendance a = new Attendance();
-                    a.setEmployee(employee);
-                    a.setDate(today);
-                    a.setStatus(Attendance.AttendanceStatus.ABSENT);
-                    return attendanceRepository.save(a);
-                });
+                .orElse(null);
+
+        if (attendance == null) {
+            attendance = new Attendance();
+            attendance.setEmployee(employee);
+            attendance.setDate(today);
+        }
 
         if (attendance.getCheckInTime() != null) {
             throw new AlreadyCheckedInException("Already checked in today");
@@ -104,6 +107,10 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         boolean isWFH = wfhPolicyRepository.existsByIsGlobalTrueAndEnabledTrue()
                 || wfhPolicyRepository.existsByEmployee_IdAndEnabledTrue(employeeId);
+
+        attendance.setWorkMode(isWFH
+                ? Attendance.WorkMode.WFH
+                : Attendance.WorkMode.OFFICE);
 
         if (!isWFH) {
             if (latitude == null || longitude == null) {
@@ -179,8 +186,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         return String.format("%02d:%02d", minutes / 60, minutes % 60);
     }
 
-    private boolean isLateLogin() {
-        return LocalTime.now().isAfter(LocalTime.of(9, 30));
+    private boolean isLate(Attendance attendance) {
+
+        if (attendance.getCheckInTime() == null)
+            return false;
+
+        return attendance.getCheckInTime()
+                .toLocalTime()
+                .isAfter(OFFICE_START_TIME);
     }
 
     // ================= HELPERS =================
@@ -188,7 +201,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private Attendance getTodayAttendance(UUID employeeId) {
         return attendanceRepository
                 .findByEmployeeIdAndDate(employeeId, LocalDate.now())
-                .orElseThrow(() -> new RuntimeException("Not checked in"));
+                .orElseThrow(() -> new ResourceNotFoundException("Not checked in"));
     }
 
     private void sendNotification(Employee emp, String title) {
@@ -209,10 +222,39 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public AttendanceResponseDto getTodayAttendanceByEmployee(UUID employeeId) {
+
+        LocalDate today = LocalDate.now();
+
         return attendanceRepository
-                .findByEmployeeIdAndDate(employeeId, LocalDate.now())
+                .findByEmployeeIdAndDate(employeeId, today)
                 .map(DtoMapper::toDto)
-                .orElse(null);
+                .orElseGet(() -> {
+
+                    boolean isHoliday = holidayRepository.existsByDate(today);
+                    DayOfWeek day = today.getDayOfWeek();
+
+                    String status;
+                    if (isHoliday) {
+                        status = Attendance.AttendanceStatus.HOLIDAY.name();
+                    } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                        status = Attendance.AttendanceStatus.WEEKEND.name();
+                    } else {
+                        status = Attendance.AttendanceStatus.ABSENT.name();
+                    }
+
+                    Employee emp = employeeRepository.findById(employeeId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+                    return AttendanceResponseDto.builder()
+                            .employeeId(emp.getId())
+                            .firstName(emp.getFirstName())
+                            .lastName(emp.getLastName())
+                            .employeeCode(emp.getEmployeeId())
+                            .date(today)
+                            .attendanceStatus(status)
+                            .workedTime("00:00")
+                            .build();
+                });
     }
 
     @Override
@@ -254,25 +296,112 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public List<AttendanceResponseDto> getTodayAttendance() {
-        LocalDate date = LocalDate.now();
-        return attendanceRepository.findByDate(date)
+
+        LocalDate today = LocalDate.now();
+
+        List<Employee> employees = employeeRepository.findAll();
+
+        Map<UUID, Attendance> attendanceMap = attendanceRepository
+                .findByDate(today)
                 .stream()
-                .map(DtoMapper::toDto)
-                .toList();
+                .collect(Collectors.toMap(
+                        a -> a.getEmployee().getId(),
+                        a -> a,
+                        (a1, a2) -> a1));
+
+        List<AttendanceResponseDto> result = new ArrayList<>();
+
+        for (Employee emp : employees) {
+
+            Attendance attendance = attendanceMap.get(emp.getId());
+
+            if (attendance != null) {
+                result.add(DtoMapper.toDto(attendance));
+            } else {
+
+                boolean isHoliday = holidayRepository.existsByDate(today);
+                DayOfWeek day = today.getDayOfWeek();
+
+                String status;
+                if (isHoliday) {
+                    status = Attendance.AttendanceStatus.HOLIDAY.name();
+                } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                    status = Attendance.AttendanceStatus.WEEKEND.name();
+                } else {
+                    status = Attendance.AttendanceStatus.ABSENT.name();
+                }
+
+                result.add(AttendanceResponseDto.builder()
+                        .employeeId(emp.getId())
+                        .firstName(emp.getFirstName())
+                        .lastName(emp.getLastName())
+                        .employeeCode(emp.getEmployeeId())
+                        .date(today)
+                        .attendanceStatus(status)
+                        .workedTime("00:00")
+                        .build());
+            }
+
+        }
+
+        return result;
     }
 
     @Override
     public List<AttendanceResponseDto> getAttendanceByDate(String date) {
+
         LocalDate parsedDate;
         try {
             parsedDate = LocalDate.parse(date);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid date format. Use YYYY-MM-DD");
         }
-        return attendanceRepository.findByDate(parsedDate)
+
+        List<Employee> employees = employeeRepository.findAll();
+
+        Map<UUID, Attendance> attendanceMap = attendanceRepository
+                .findByDate(parsedDate)
                 .stream()
-                .map(DtoMapper::toDto)
-                .toList();
+                .collect(Collectors.toMap(
+                        a -> a.getEmployee().getId(),
+                        a -> a,
+                        (a1, a2) -> a1));
+
+        boolean isHoliday = holidayRepository.existsByDate(parsedDate);
+        DayOfWeek day = parsedDate.getDayOfWeek();
+
+        List<AttendanceResponseDto> result = new ArrayList<>();
+
+        for (Employee emp : employees) {
+
+            Attendance attendance = attendanceMap.get(emp.getId());
+
+            if (attendance != null) {
+                result.add(DtoMapper.toDto(attendance));
+            } else {
+
+                String status;
+                if (isHoliday) {
+                    status = Attendance.AttendanceStatus.HOLIDAY.name();
+                } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                    status = Attendance.AttendanceStatus.WEEKEND.name();
+                } else {
+                    status = Attendance.AttendanceStatus.ABSENT.name();
+                }
+
+                result.add(AttendanceResponseDto.builder()
+                        .employeeId(emp.getId())
+                        .firstName(emp.getFirstName())
+                        .lastName(emp.getLastName())
+                        .employeeCode(emp.getEmployeeId())
+                        .date(parsedDate)
+                        .attendanceStatus(status)
+                        .workedTime("00:00")
+                        .build());
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -331,43 +460,77 @@ public class AttendanceServiceImpl implements AttendanceService {
             LocalDate weekStart) {
 
         User user = userRepository.findByEmail(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         LocalDate start = weekStart;
         LocalDate end = weekStart.plusDays(6);
 
+        List<Employee> employees;
+
         if (user.getRole() == User.Role.ROLE_EMPLOYEE) {
-
-            if (user.getEmployee() == null) {
-                throw new RuntimeException("Logged-in user has no employee assigned");
-            }
-            UUID empId = user.getEmployee().getId();
-            List<Attendance> records = attendanceRepository.findWeeklyAttendance(empId, start, end);
-            return records.stream()
-                    .map(this::mapToTimelineDto)
-                    .toList();
-
+            employees = List.of(user.getEmployee());
         } else {
+            employees = employeeId != null
+                    ? List.of(employeeRepository.findById(employeeId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Employee not found")))
+                    : employeeRepository.findAll();
+        }
 
-            if (employeeId != null) {
-                // Specific employee timeline
-                List<Attendance> records = attendanceRepository.findWeeklyAttendance(employeeId, start, end);
-                return records.stream()
-                        .map(this::mapToTimelineDto)
-                        .toList();
-            } else {
+        List<WeeklyTimelineDto> result = new ArrayList<>();
 
-                List<Employee> employees = employeeRepository.findAll();
-                List<WeeklyTimelineDto> allTimelines = new ArrayList<>();
-                for (Employee emp : employees) {
-                    List<Attendance> records = attendanceRepository.findWeeklyAttendance(emp.getId(), start, end);
-                    records.stream()
-                            .map(this::mapToTimelineDto)
-                            .forEach(allTimelines::add);
+        for (Employee emp : employees) {
+
+            Map<LocalDate, Attendance> attendanceMap = attendanceRepository
+                    .findWeeklyAttendance(emp.getId(), start, end)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            Attendance::getDate,
+                            a -> a,
+                            (a1, a2) -> a1));
+
+            Set<LocalDate> holidayDates = holidayRepository.findHolidayDatesBetween(start, end);
+
+            for (int i = 0; i < 7; i++) {
+                LocalDate date = start.plusDays(i);
+                DayOfWeek day = date.getDayOfWeek();
+
+                Attendance a = attendanceMap.get(date);
+
+                boolean isHoliday = holidayDates.contains(date);
+
+                String status;
+
+                if (a != null) {
+                    status = a.getStatus().name();
+                } else if (isHoliday) {
+                    status = Attendance.AttendanceStatus.HOLIDAY.name();
+                } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                    status = Attendance.AttendanceStatus.WEEKEND.name();
+                } else {
+                    status = Attendance.AttendanceStatus.ABSENT.name();
                 }
-                return allTimelines;
+
+                if (a != null) {
+                    result.add(mapToTimelineDto(a));
+                } else {
+                    result.add(new WeeklyTimelineDto(
+                            emp.getId(),
+                            emp.getFirstName(),
+                            emp.getLastName(),
+                            emp.getEmployeeId(),
+                            date,
+                            null,
+                            null,
+                            status,
+                            0,
+                            0,
+                            false,
+                            null));
+                }
             }
         }
+
+        return result;
     }
 
     @Override
@@ -423,7 +586,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     public WeeklySummaryDto getMyWeeklySummary(Authentication auth, LocalDate weekStart) {
         User user = userRepository.findByEmail(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         UUID empId = user.getEmployee().getId();
         return calculateWeeklySummary(empId, weekStart, weekStart.plusDays(6));
@@ -451,13 +614,23 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         List<Attendance> records = attendanceRepository.findWeeklyAttendance(employeeId, start, end);
 
-        int present = 0, halfDay = 0, leave = 0, weekend = 0;
+        int present = 0, halfDay = 0, leave = 0, weekend = 0, holiday = 0;
 
-        Map<LocalDate, Attendance> map = records.stream().collect(Collectors.toMap(Attendance::getDate, a -> a));
+        Map<LocalDate, Attendance> map = records.stream().collect(Collectors.toMap(
+                Attendance::getDate,
+                a -> a,
+                (a1, a2) -> a1));
+        Set<LocalDate> holidayDates = holidayRepository.findHolidayDatesBetween(start, end);
 
         for (int i = 0; i < 7; i++) {
             LocalDate date = start.plusDays(i);
             DayOfWeek day = date.getDayOfWeek();
+            boolean isHoliday = holidayDates.contains(date);
+
+            if (isHoliday) {
+                holiday++;
+                continue;
+            }
 
             if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
                 weekend++;
@@ -491,13 +664,23 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         List<Attendance> records = attendanceRepository.findWeeklyAttendance(employeeId, start, end);
 
-        int present = 0, halfDay = 0, leave = 0, weekend = 0;
+        int present = 0, halfDay = 0, leave = 0, weekend = 0, holiday = 0;
 
-        Map<LocalDate, Attendance> map = records.stream().collect(Collectors.toMap(Attendance::getDate, a -> a));
+        Map<LocalDate, Attendance> map = records.stream().collect(Collectors.toMap(
+                Attendance::getDate,
+                a -> a,
+                (a1, a2) -> a1));
+        Set<LocalDate> holidayDates = holidayRepository.findHolidayDatesBetween(start, end);
 
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
 
             DayOfWeek day = date.getDayOfWeek();
+            boolean isHoliday = holidayDates.contains(date);
+            if (isHoliday) {
+                holiday++;
+                continue;
+            }
+
             if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
                 weekend++;
                 continue;
@@ -543,28 +726,27 @@ public class AttendanceServiceImpl implements AttendanceService {
                 emp.getFirstName(),
                 emp.getLastName(),
                 emp.getEmployeeId(),
-
                 a.getDate(),
-
                 a.getCheckInTime() != null
                         ? a.getCheckInTime().toLocalTime()
                         : null,
-
                 a.getCheckOutTime() != null
                         ? a.getCheckOutTime().toLocalTime()
                         : null,
-
                 a.getStatus() != null
                         ? a.getStatus().name()
                         : "UNKNOWN",
-
                 a.getTotalMinutes() != null
                         ? a.getTotalMinutes().intValue()
                         : 0,
-
                 a.getOvertimeMinutes() != null
                         ? a.getOvertimeMinutes().intValue()
-                        : 0);
+                        : 0,
+                isLate(a),
+
+                a.getWorkMode() != null
+                        ? a.getWorkMode().name()
+                        : null);
     }
 
 }

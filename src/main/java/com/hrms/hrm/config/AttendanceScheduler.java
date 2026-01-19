@@ -18,8 +18,6 @@ import org.springframework.stereotype.Component;
 public class AttendanceScheduler {
 
     private final AttendanceServiceImpl attendanceService;
-    private final EmployeeRepository employeeRepository;
-    private final AttendanceRepository attendanceRepository;
 
     // Run every day at 23:59
     @Scheduled(cron = "0 59 23 * * ?")
@@ -27,27 +25,6 @@ public class AttendanceScheduler {
         attendanceService.autoCheckoutEndOfDay();
     }
 
-    @Scheduled(cron = "0 0 0 * * ?")
-    public void createDailyAttendance() {
-
-        LocalDate today = LocalDate.now();
-        List<Employee> employees = employeeRepository.findAll();
-
-        for (Employee emp : employees) {
-
-            boolean exists = attendanceRepository
-                    .existsByEmployeeIdAndDate(emp.getId(), today);
-
-            if (!exists) {
-                Attendance attendance = Attendance.builder()
-                        .employee(emp)
-                        .date(today)
-                        .status(Attendance.AttendanceStatus.ABSENT)
-                        .build();
-
-                attendanceRepository.save(attendance);
-            }
-        }
-    }
-
 }
+
+    
