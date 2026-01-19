@@ -124,7 +124,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
         }
 
-        attendance.setCheckInTime(LocalDateTime.now());
+        attendance.setCheckInTime(Instant.now());
+        attendance.setStatus(Attendance.AttendanceStatus.ONLINE);
         attendance.setLatitude(latitude);
         attendance.setLongitude(longitude);
         attendance.setLocationName(locationName);
@@ -145,7 +146,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new RuntimeException("Already checked out");
         }
 
-        attendance.setCheckOutTime(LocalDateTime.now());
+        attendance.setCheckOutTime(Instant.now());
         calculateFinalAttendance(attendance);
 
         attendanceRepository.save(attendance);
@@ -191,9 +192,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (attendance.getCheckInTime() == null)
             return false;
 
-        return attendance.getCheckInTime()
-                .toLocalTime()
-                .isAfter(OFFICE_START_TIME);
+        LocalTime checkInLocalTime = attendance.getCheckInTime()
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime();
+
+        return checkInLocalTime.isAfter(OFFICE_START_TIME);
     }
 
     // ================= HELPERS =================
@@ -225,36 +228,47 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         LocalDate today = LocalDate.now();
 
-        return attendanceRepository
-                .findByEmployeeIdAndDate(employeeId, today)
-                .map(DtoMapper::toDto)
-                .orElseGet(() -> {
+        Optional<Attendance> attendanceOpt = attendanceRepository.findByEmployeeIdAndDate(employeeId, today);
 
-                    boolean isHoliday = holidayRepository.existsByDate(today);
-                    DayOfWeek day = today.getDayOfWeek();
+        if (attendanceOpt.isPresent()) {
+            Attendance attendance = attendanceOpt.get();
 
-                    String status;
-                    if (isHoliday) {
-                        status = Attendance.AttendanceStatus.HOLIDAY.name();
-                    } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-                        status = Attendance.AttendanceStatus.WEEKEND.name();
-                    } else {
-                        status = Attendance.AttendanceStatus.ABSENT.name();
-                    }
+            String status = attendance.getStatus() != null
+                    ? attendance.getStatus().name()
+                    : (attendance.getCheckInTime() != null
+                            ? Attendance.AttendanceStatus.ONLINE.name()
+                            : Attendance.AttendanceStatus.ABSENT.name());
 
-                    Employee emp = employeeRepository.findById(employeeId)
-                            .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+            AttendanceResponseDto dto = DtoMapper.toDto(attendance);
+            dto.setAttendanceStatus(status);
+            return dto;
+        } else {
 
-                    return AttendanceResponseDto.builder()
-                            .employeeId(emp.getId())
-                            .firstName(emp.getFirstName())
-                            .lastName(emp.getLastName())
-                            .employeeCode(emp.getEmployeeId())
-                            .date(today)
-                            .attendanceStatus(status)
-                            .workedTime("00:00")
-                            .build();
-                });
+            boolean isHoliday = holidayRepository.existsByDate(today);
+            DayOfWeek day = today.getDayOfWeek();
+
+            String status;
+            if (isHoliday) {
+                status = Attendance.AttendanceStatus.HOLIDAY.name();
+            } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                status = Attendance.AttendanceStatus.WEEKEND.name();
+            } else {
+                status = Attendance.AttendanceStatus.ABSENT.name();
+            }
+
+            Employee emp = employeeRepository.findById(employeeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+            return AttendanceResponseDto.builder()
+                    .employeeId(emp.getId())
+                    .firstName(emp.getFirstName())
+                    .lastName(emp.getLastName())
+                    .employeeCode(emp.getEmployeeId())
+                    .date(today)
+                    .attendanceStatus(status)
+                    .workedTime("00:00")
+                    .build();
+        }
     }
 
     @Override
@@ -315,14 +329,24 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             Attendance attendance = attendanceMap.get(emp.getId());
 
+            String status;
             if (attendance != null) {
-                result.add(DtoMapper.toDto(attendance));
-            } else {
+                
+                status = attendance.getStatus() != null
+                        ? attendance.getStatus().name()
+                        : (attendance.getCheckInTime() != null
+                                ? Attendance.AttendanceStatus.ONLINE.name()
+                                : Attendance.AttendanceStatus.ABSENT.name());
 
+                AttendanceResponseDto dto = DtoMapper.toDto(attendance);
+                dto.setAttendanceStatus(status);
+                result.add(dto);
+
+            } else {
+                // No attendance record
                 boolean isHoliday = holidayRepository.existsByDate(today);
                 DayOfWeek day = today.getDayOfWeek();
 
-                String status;
                 if (isHoliday) {
                     status = Attendance.AttendanceStatus.HOLIDAY.name();
                 } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
@@ -341,7 +365,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                         .workedTime("00:00")
                         .build());
             }
-
         }
 
         return result;
@@ -376,11 +399,21 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             Attendance attendance = attendanceMap.get(emp.getId());
 
+            String status;
             if (attendance != null) {
-                result.add(DtoMapper.toDto(attendance));
-            } else {
+                
+                status = attendance.getStatus() != null
+                        ? attendance.getStatus().name()
+                        : (attendance.getCheckInTime() != null
+                                ? Attendance.AttendanceStatus.ONLINE.name()
+                                : Attendance.AttendanceStatus.ABSENT.name());
 
-                String status;
+                AttendanceResponseDto dto = DtoMapper.toDto(attendance);
+                dto.setAttendanceStatus(status);
+                result.add(dto);
+
+            } else {
+                // No attendance record
                 if (isHoliday) {
                     status = Attendance.AttendanceStatus.HOLIDAY.name();
                 } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
@@ -501,7 +534,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                 String status;
 
                 if (a != null) {
-                    status = a.getStatus().name();
+                   
+                    status = a.getStatus() != null
+                            ? a.getStatus().name()
+                            : (a.getCheckInTime() != null
+                                    ? Attendance.AttendanceStatus.ONLINE.name()
+                                    : Attendance.AttendanceStatus.ABSENT.name());
                 } else if (isHoliday) {
                     status = Attendance.AttendanceStatus.HOLIDAY.name();
                 } else if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
@@ -593,19 +631,46 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     @Override
+    public WeeklySummaryDto getEmployeeWeeklySummary(UUID employeeId, LocalDate weekStart) {
+
+        employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        return calculateWeeklySummary(
+                employeeId,
+                weekStart,
+                weekStart.plusDays(6));
+    }
+
+    @Override
     public void autoCheckoutEndOfDay() {
         LocalDate today = LocalDate.now();
 
+        // Get all check-ins without checkout
         List<Attendance> records = attendanceRepository.findByDateAndCheckedInWithoutCheckout(today);
 
-        records.forEach(rec -> {
+        Instant autoCheckoutTime = LocalDateTime
+                .of(today, LocalTime.of(23, 59))
+                .atZone(ZoneId.systemDefault())
+                .toInstant();
 
-            rec.setCheckOutTime(LocalDateTime.of(today, LocalTime.of(23, 59)));
+        for (Attendance attendance : records) {
+            attendance.setCheckOutTime(autoCheckoutTime);
 
-            calculateFinalAttendance(rec);
+            // Recalculate worked time, overtime, breaks, and status
+            calculateFinalAttendance(attendance);
 
-            attendanceRepository.save(rec);
-        });
+            // If status was null (i.e., check-in exists but not checked out), mark as
+            // PRESENT or HALF_DAY
+            if (attendance.getStatus() == null) {
+                long workedMinutes = attendance.getTotalMinutes() != null ? attendance.getTotalMinutes() : 0;
+                attendance.setStatus(workedMinutes < 240
+                        ? Attendance.AttendanceStatus.HALF_DAY
+                        : Attendance.AttendanceStatus.PRESENT);
+            }
+
+            attendanceRepository.save(attendance);
+        }
 
         log.info("Auto checkout completed for {} records at end of day", records.size());
     }
@@ -640,6 +705,10 @@ public class AttendanceServiceImpl implements AttendanceService {
             Attendance a = map.get(date);
             if (a == null) {
                 leave++;
+            } else if (a.getCheckInTime() != null && a.getStatus() == null) {
+                // Checked in but no checkout yet
+                a.setStatus(Attendance.AttendanceStatus.ONLINE);
+                present++; // count ONLINE as present
             } else {
                 switch (a.getStatus()) {
                     case PRESENT -> present++;
@@ -647,6 +716,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     case ON_LEAVE -> leave++;
                 }
             }
+
         }
 
         return new WeeklySummaryDto(
@@ -689,6 +759,10 @@ public class AttendanceServiceImpl implements AttendanceService {
             Attendance a = map.get(date);
             if (a == null) {
                 leave++;
+            } else if (a.getCheckInTime() != null && a.getStatus() == null) {
+               
+                a.setStatus(Attendance.AttendanceStatus.ONLINE);
+                present++;
             } else {
                 switch (a.getStatus()) {
                     case PRESENT -> present++;
@@ -696,6 +770,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     case ON_LEAVE -> leave++;
                 }
             }
+
         }
 
         return new MonthlySummaryDto(
@@ -721,32 +796,33 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         Employee emp = a.getEmployee();
 
+        String checkIn = a.getCheckInTime() != null
+                ? a.getCheckInTime()
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalTime()
+                        .toString()
+                : null;
+
+        String checkOut = a.getCheckOutTime() != null
+                ? a.getCheckOutTime()
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalTime()
+                        .toString()
+                : null;
+
         return new WeeklyTimelineDto(
                 emp.getId(),
                 emp.getFirstName(),
                 emp.getLastName(),
                 emp.getEmployeeId(),
                 a.getDate(),
-                a.getCheckInTime() != null
-                        ? a.getCheckInTime().toLocalTime()
-                        : null,
-                a.getCheckOutTime() != null
-                        ? a.getCheckOutTime().toLocalTime()
-                        : null,
-                a.getStatus() != null
-                        ? a.getStatus().name()
-                        : "UNKNOWN",
-                a.getTotalMinutes() != null
-                        ? a.getTotalMinutes().intValue()
-                        : 0,
-                a.getOvertimeMinutes() != null
-                        ? a.getOvertimeMinutes().intValue()
-                        : 0,
+                checkIn,
+                checkOut,
+                a.getStatus().name(),
+                a.getTotalMinutes() != null ? a.getTotalMinutes().intValue() : 0,
+                a.getOvertimeMinutes() != null ? a.getOvertimeMinutes().intValue() : 0,
                 isLate(a),
-
-                a.getWorkMode() != null
-                        ? a.getWorkMode().name()
-                        : null);
+                a.getWorkMode() != null ? a.getWorkMode().name() : null);
     }
 
 }

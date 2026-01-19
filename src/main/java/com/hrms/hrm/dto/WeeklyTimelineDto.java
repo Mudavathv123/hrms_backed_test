@@ -2,6 +2,7 @@ package com.hrms.hrm.dto;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -18,8 +19,8 @@ public class WeeklyTimelineDto {
     private String lastName;
     private String employeeCode;
     private LocalDate date;
-    private LocalTime checkInTime;
-    private LocalTime checkOutTime;
+    private String checkInTime;
+    private String checkOutTime;
     private String attendanceStatus;
     private Integer totalMinutes;
     private Integer overtimeMinutes;

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -144,9 +145,17 @@ public class AttendanceController {
         }
 
         @GetMapping("/summary/me")
+        @PreAuthorize("hasAnyRole('ADMIN','HR','EMPLOYEE')")
         public ApiResponse<WeeklySummaryDto> myWeeklySummary(
                         @RequestParam LocalDate weekStart,
+                        @RequestParam(required = false) UUID employeeId,
                         Authentication auth) {
+
+                if (employeeId != null) {
+                        return ApiResponse.success(
+                                        attendanceService.getEmployeeWeeklySummary(employeeId, weekStart),
+                                        "Employee weekly summary");
+                }
 
                 return ApiResponse.success(
                                 attendanceService.getMyWeeklySummary(auth, weekStart),

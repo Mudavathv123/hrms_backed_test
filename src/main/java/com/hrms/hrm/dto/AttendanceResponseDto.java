@@ -1,13 +1,12 @@
 package com.hrms.hrm.dto;
 
-import com.hrms.hrm.model.Employee;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -19,8 +18,8 @@ public class AttendanceResponseDto {
     private UUID id;
     private UUID employeeId;
     private LocalDate date;
-    private LocalDateTime checkInTime;
-    private LocalDateTime checkOutTime;
+    private String checkInTime;
+    private String checkOutTime;
     private String attendanceStatus;
     private String workedTime;
     private String firstName;

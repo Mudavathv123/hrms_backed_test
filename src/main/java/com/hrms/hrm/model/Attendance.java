@@ -1,7 +1,6 @@
 package com.hrms.hrm.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonFormat;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -9,8 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -34,13 +33,11 @@ public class Attendance {
 
     private LocalDate date;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Kolkata")
-    @Column(name = "check_in_time")
-    private LocalDateTime checkInTime;
+    @Column(name = "check_in_time", columnDefinition = "TIMESTAMP")
+    private Instant checkInTime;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss", timezone = "Asia/Kolkata")
-    @Column(name = "check_out_time")
-    private LocalDateTime checkOutTime;
+    @Column(name = "check_out_time", columnDefinition = "TIMESTAMP")
+    private Instant checkOutTime;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "attendance_status")
@@ -81,6 +78,7 @@ public class Attendance {
         ABSENT,
         HALF_DAY,
         LATE,
+        ONLINE,
         ON_LEAVE,
         WEEKEND,
         HOLIDAY
