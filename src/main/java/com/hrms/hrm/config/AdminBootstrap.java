@@ -34,7 +34,7 @@ public class AdminBootstrap {
                 "vinodmudavath30@hrms.com",
                 "Mangi@143",
                 "Super Admin",
-                UUID.fromString("a03830f6-ce13-46f6-b03f-32aae8715b52")
+                null
         );
     }
 
