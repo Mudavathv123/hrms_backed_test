@@ -240,7 +240,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 extension = originalName.substring(originalName.lastIndexOf("."));
             }
 
-            String key = "avatars/" + employeeId + extension; // same key to replace old file
+           String key = "avatars/" + employeeId + "-" + System.currentTimeMillis() + extension;
 
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)

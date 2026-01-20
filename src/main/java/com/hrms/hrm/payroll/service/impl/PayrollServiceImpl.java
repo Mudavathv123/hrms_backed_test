@@ -6,7 +6,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -15,16 +14,18 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import com.hrms.hrm.error.PayrollException;
 import com.hrms.hrm.error.ResourceNotFoundException;
 import com.hrms.hrm.model.Employee;
 import com.hrms.hrm.model.Leave;
 import com.hrms.hrm.model.User;
-import com.hrms.hrm.payroll.config.PayslipPdfGenerator;
+import com.hrms.hrm.payroll.config.MonthlyPayslipPdfGenerator;
 import com.hrms.hrm.payroll.dto.DashboardStats;
 import com.hrms.hrm.payroll.dto.PayrollDashboardResponse;
 import com.hrms.hrm.payroll.dto.PayrollHistoryResponseDto;
 import com.hrms.hrm.payroll.dto.PieChartDTO;
 import com.hrms.hrm.payroll.dto.SalaryTrendDTO;
+import com.hrms.hrm.payroll.model.EmployeeBankDetails;
 import com.hrms.hrm.payroll.model.PaySlip;
 import com.hrms.hrm.payroll.model.Payroll;
 import com.hrms.hrm.payroll.model.Payroll.PayrollStatus;
@@ -56,7 +57,7 @@ public class PayrollServiceImpl implements PayrollService {
         private final LeaveRepository leaveRepository;
         private final PayrollDeductionRepository payrollDeductionRepository;
         private final PayslipRepository payslipRepository;
-        private final PayslipPdfGenerator payslipPdfGenerator;
+        private final MonthlyPayslipPdfGenerator payslipPdfGenerator;
         private final EmployeeRepository employeeRepository;
         private final UserRepository userRepository;
 
@@ -73,16 +74,15 @@ public class PayrollServiceImpl implements PayrollService {
                 SalaryStructure salary = salaryStructureRepository.findByEmployeeId(employeeId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Salary structure not found"));
 
+                Employee employee = employeeRepository.findById(employeeId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
                 LocalDate monthStart = LocalDate.of(year, month, 1);
                 LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
 
+                /* ================= ATTENDANCE ================= */
+
                 int presentDays = attendanceRepository.countPresentDays(employeeId, month, year);
-                int unpaidLeaves = leaveRepository.countUnpaidLeaveDays(
-                                employeeId,
-                                Leave.LeaveType.UNPAID,
-                                Leave.LeaveStatus.APPROVED,
-                                monthStart,
-                                monthEnd);
 
                 int paidLeaveDays = leaveRepository.sumLeaveDays(
                                 employeeId,
@@ -98,72 +98,125 @@ public class PayrollServiceImpl implements PayrollService {
                                 monthStart,
                                 monthEnd);
 
-                int absentDays = WORKING_DAYS - presentDays - paidLeaveDays - unpaidLeaveDays;
-                if (absentDays < 0)
-                        absentDays = 0;
+                int paidDays = presentDays + paidLeaveDays;
 
-                if (paidLeaveDays < 0)
-                        paidLeaveDays = 0;
+                if (paidDays == 0) {
+                        throw new PayrollException("Payroll cannot be generated when Paid Days is 0");
+                }
 
-                int lopDays = unpaidLeaveDays + absentDays;
+                int lopDays = WORKING_DAYS - paidDays;
 
-                // Salary calculation
-                BigDecimal monthlySalary = salary.getBasic()
+                if (lopDays < 0)
+                        lopDays = 0;
+
+                /* ================= SALARY ================= */
+
+                // 1. Monthly gross
+                BigDecimal monthlyGross = salary.getBasic()
                                 .add(salary.getHra())
                                 .add(salary.getAllowance());
 
-                BigDecimal perDaySalary = monthlySalary.divide(
+                // 2. Per day salary
+                BigDecimal perDaySalary = monthlyGross.divide(
                                 BigDecimal.valueOf(WORKING_DAYS),
                                 2,
                                 RoundingMode.HALF_UP);
 
+                // 3. LOP
                 BigDecimal lopAmount = perDaySalary.multiply(BigDecimal.valueOf(lopDays));
-                BigDecimal grossSalary = monthlySalary.subtract(lopAmount);
 
-                BigDecimal pf = salary.getBasic()
-                                .multiply(salary.getPfPercent())
-                                .divide(BigDecimal.valueOf(100));
+                // 4. Earned gross (after LOP)
+                BigDecimal earnedGross = monthlyGross.subtract(lopAmount);
 
-                BigDecimal tax = grossSalary
+                // 5. Earned BASIC for PF
+                BigDecimal perDayBasic = salary.getBasic()
+                                .divide(BigDecimal.valueOf(WORKING_DAYS), 2, RoundingMode.HALF_UP);
+
+                BigDecimal earnedBasic = perDayBasic.multiply(BigDecimal.valueOf(paidDays));
+
+                // 6. PF
+                BigDecimal pf = BigDecimal.ZERO;
+                if (salary.getPfPercent().compareTo(BigDecimal.ZERO) > 0) {
+                        pf = earnedBasic
+                                        .multiply(salary.getPfPercent())
+                                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                }
+
+                // 7. Tax
+                BigDecimal tax = earnedGross
                                 .multiply(salary.getTaxPercent())
-                                .divide(BigDecimal.valueOf(100));
+                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
-                BigDecimal totalDeduction = pf.add(tax).add(lopAmount);
-                BigDecimal netSalary = grossSalary.subtract(totalDeduction);
+                // 8. Total deductions (NO LOP here)
+                BigDecimal totalDeductions = pf.add(tax);
+
+                // 9. Net salary
+                BigDecimal netSalary = earnedGross.subtract(totalDeductions);
+
+                /* ================= PAYROLL ENTITY ================= */
 
                 Payroll payroll = new Payroll();
                 payroll.setEmployeeId(employeeId);
                 payroll.setMonth(month);
                 payroll.setYear(year);
-                payroll.setWorkingDays(WORKING_DAYS);
-                payroll.setPresentDays(presentDays);
-                payroll.setGrossSalary(grossSalary);
-                payroll.setTotalDeductions(totalDeduction);
-                payroll.setNetSalary(netSalary);
-                payroll.setPaidLeaveDays(Math.max(paidLeaveDays, 0));
-                payroll.setUnpaidLeaveDays(unpaidLeaveDays);
-                payroll.setStatus(Payroll.PayrollStatus.GENERATED);
+                payroll.setPayPeriodStart(monthStart);
+                payroll.setPayPeriodEnd(monthEnd);
 
+                payroll.setTotalWorkingDays(WORKING_DAYS);
+                payroll.setWorkingDays(presentDays + paidLeaveDays);
+                payroll.setPresentDays(presentDays);
+                payroll.setPaidLeaveDays(paidLeaveDays);
+                payroll.setUnpaidLeaveDays(unpaidLeaveDays);
+                payroll.setPaidDays(paidDays);
+
+                // Salary snapshot
+                payroll.setBasicSalary(salary.getBasic());
+                payroll.setHra(salary.getHra());
+                payroll.setAllowance(salary.getAllowance());
+
+                payroll.setGrossSalary(earnedGross);
+                payroll.setTotalDeductions(totalDeductions);
+                payroll.setLopAmount(lopAmount);
+                payroll.setArrears(BigDecimal.ZERO);
+                payroll.setNetSalary(netSalary);
+
+                /* ===== Bank & Statutory Snapshot (FIXED) ===== */
+                if (employee.getBankDetails() != null) {
+                        EmployeeBankDetails bank = employee.getBankDetails();
+
+                        payroll.setBankName(bank.getBankName());
+                        payroll.setBankAccountNumber(bank.getAccountNumber());
+                        payroll.setIfscCode(bank.getIfscCode());
+
+                        payroll.setUanNumber(bank.getUan());
+                        // PAN optional if you add to Payroll later
+                }
+
+                payroll.setStatus(PayrollStatus.GENERATED);
                 payroll = payrollRepository.save(payroll);
 
-                // Save deductions
-                saveDeduction(payroll, "PF", pf);
-                saveDeduction(payroll, "TAX", tax);
-                saveDeduction(payroll, "LOSS_OF_PAY", lopAmount);
+                /* ================= DEDUCTIONS ================= */
 
-                // Generate Payslip PDF
+                if (pf.compareTo(BigDecimal.ZERO) > 0) {
+                        saveDeduction(payroll, "PF", pf);
+                }
+
+                if (tax.compareTo(BigDecimal.ZERO) > 0) {
+                        saveDeduction(payroll, "TAX", tax);
+                }
+
+                /* ================= PAYSLIP ================= */
+
                 List<PayrollDeduction> deductions = payrollDeductionRepository.findByPayrollId(payroll.getId());
-
-                String employeeName = "Employee-" + employeeId;
 
                 try {
                         String pdfPath = payslipPdfGenerator.generatePayslip(
-                                        payroll, salary, deductions, employeeName);
+                                        payroll, salary, deductions);
 
-                        PaySlip paySlip = new PaySlip();
-                        paySlip.setPayroll(payroll);
-                        paySlip.setPdfUrl(pdfPath);
-                        payslipRepository.save(paySlip);
+                        PaySlip slip = new PaySlip();
+                        slip.setPayroll(payroll);
+                        slip.setPdfUrl(pdfPath);
+                        payslipRepository.save(slip);
 
                 } catch (Exception e) {
                         throw new RuntimeException("Payslip PDF generation failed", e);
@@ -173,11 +226,11 @@ public class PayrollServiceImpl implements PayrollService {
         }
 
         private void saveDeduction(Payroll payroll, String type, BigDecimal amount) {
-                PayrollDeduction deduction = new PayrollDeduction();
-                deduction.setPayroll(payroll);
-                deduction.setDeductionType(type);
-                deduction.setAmount(amount);
-                payrollDeductionRepository.save(deduction);
+                PayrollDeduction d = new PayrollDeduction();
+                d.setPayroll(payroll);
+                d.setDeductionType(type);
+                d.setAmount(amount);
+                payrollDeductionRepository.save(d);
         }
 
         @Override
