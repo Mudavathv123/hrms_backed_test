@@ -40,7 +40,7 @@ public class Attendance {
     private Instant checkOutTime;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "attendance_status")
+    @Column(name = "attendance_status", length = 30)
     private AttendanceStatus status;
 
     @Enumerated(EnumType.STRING)

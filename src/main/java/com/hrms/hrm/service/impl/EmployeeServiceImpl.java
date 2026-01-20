@@ -150,7 +150,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .message("Employee " + employee.getFirstName() + " " + employee.getLastName()
                                     + " has been updated.")
                             .senderId(null)
-                            .receiverId(null) 
+                            .receiverId(null)
                             .targetRole("ROLE_ADMIN")
                             .build());
             log.info("Notification sent for updated employee: {}", employee.getEmail());
@@ -193,7 +193,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .message("Employee " + employee.getFirstName() + " " + employee.getLastName()
                                     + " has been deleted.")
                             .senderId(null)
-                            .receiverId(null) // Could be broadcast to admins
+                            .receiverId(null) 
                             .targetRole("ROLE_ADMIN")
                             .build());
             log.info("Notification sent for deleted employee: {}", employee.getEmail());
@@ -228,27 +228,33 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
         try {
+
+            if (employee.getAvatar() != null && !employee.getAvatar().isEmpty()) {
+                String oldKey = employee.getAvatar().replace("https://d1ujpx8cjlbvx.cloudfront.net/", "");
+                s3Client.deleteObject(builder -> builder.bucket(bucketName).key(oldKey).build());
+            }
+
             String extension = "";
             String originalName = file.getOriginalFilename();
             if (originalName != null && originalName.contains(".")) {
                 extension = originalName.substring(originalName.lastIndexOf("."));
             }
 
-            String key = "avatars/" + employeeId + "_" + System.currentTimeMillis() + extension;
+            String key = "avatars/" + employeeId + extension; // same key to replace old file
 
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
                     .contentType(file.getContentType())
+                    .cacheControl("max-age=0, no-cache, no-store, must-revalidate")
                     .build();
 
             s3Client.putObject(
                     putObjectRequest,
                     RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
-            String cloudFontUrl = "https://d1ujpx8cjlbvx.cloudfront.net/" +key;
-
-            employee.setAvatar(cloudFontUrl);
+            String cloudFrontUrl = "https://d1ujpx8cjlbvx.cloudfront.net/" + key;
+            employee.setAvatar(cloudFrontUrl);
             employeeRepository.save(employee);
 
             return DtoMapper.toDto(employee);
