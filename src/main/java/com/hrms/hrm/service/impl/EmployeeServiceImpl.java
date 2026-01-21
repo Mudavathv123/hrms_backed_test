@@ -193,7 +193,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .message("Employee " + employee.getFirstName() + " " + employee.getLastName()
                                     + " has been deleted.")
                             .senderId(null)
-                            .receiverId(null) 
+                            .receiverId(null)
                             .targetRole("ROLE_ADMIN")
                             .build());
             log.info("Notification sent for deleted employee: {}", employee.getEmail());
@@ -221,32 +221,36 @@ public class EmployeeServiceImpl implements EmployeeService {
     public EmployeeResponseDto uploadAvatar(String employeeId, MultipartFile file) {
 
         Employee employee = employeeRepository.findById(UUID.fromString(employeeId))
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id " + employeeId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Employee not found with id " + employeeId));
 
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("Uploaded file is empty");
         }
 
+        final String oldKey;
+
+        if (employee.getAvatar() != null && !employee.getAvatar().isBlank()) {
+            oldKey = employee.getAvatar()
+                    .replace("https://d1ujpx8cjlbvx.cloudfront.net/", "");
+        } else {
+            oldKey = null;
+        }
+
         try {
-
-            if (employee.getAvatar() != null && !employee.getAvatar().isEmpty()) {
-                String oldKey = employee.getAvatar().replace("https://d1ujpx8cjlbvx.cloudfront.net/", "");
-                s3Client.deleteObject(builder -> builder.bucket(bucketName).key(oldKey).build());
-            }
-
             String extension = "";
             String originalName = file.getOriginalFilename();
             if (originalName != null && originalName.contains(".")) {
                 extension = originalName.substring(originalName.lastIndexOf("."));
             }
 
-           String key = "avatars/" + employeeId + "-" + System.currentTimeMillis() + extension;
+            String key = "avatars/" + employeeId + "-" + System.currentTimeMillis() + extension;
 
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
                     .contentType(file.getContentType())
-                    .cacheControl("max-age=0, no-cache, no-store, must-revalidate")
+                    .cacheControl("public, max-age=31536000, immutable")
                     .build();
 
             s3Client.putObject(
@@ -256,6 +260,10 @@ public class EmployeeServiceImpl implements EmployeeService {
             String cloudFrontUrl = "https://d1ujpx8cjlbvx.cloudfront.net/" + key;
             employee.setAvatar(cloudFrontUrl);
             employeeRepository.save(employee);
+
+            if (oldKey != null && !oldKey.isBlank()) {
+                s3Client.deleteObject(builder -> builder.bucket(bucketName).key(oldKey).build());
+            }
 
             return DtoMapper.toDto(employee);
 
