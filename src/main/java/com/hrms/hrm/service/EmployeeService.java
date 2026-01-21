@@ -11,6 +11,10 @@ public interface EmployeeService {
 
     List<EmployeeResponseDto> getAllEmployees();
 
+    List<EmployeeResponseDto> getInactiveEmployees();
+
+    List<EmployeeResponseDto> getActiveEmployees();
+
     EmployeeResponseDto createEmployee(EmployeeRequestDto request);
 
     EmployeeResponseDto updateEmployee(EmployeeRequestDto request, UUID id);

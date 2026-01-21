@@ -48,6 +48,15 @@ public class Employee {
 
     private String address;
 
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+
+    private LocalDate resignationDate;
+
+    @Column(name = "resignation_reason")
+    private String resignationReason;
+
     @ManyToOne
     @JoinColumn(name = "department_id")
     @JsonBackReference

@@ -54,7 +54,7 @@ public class Payroll {
     private int unpaidLeaveDays;
 
     @Column(name = "paid_days", nullable = false)
-    private int paidDays;   // ✅ REQUIRED BY PDF
+    private int paidDays;   
 
     /* ===== Salary Snapshot (for historical accuracy) ===== */
 

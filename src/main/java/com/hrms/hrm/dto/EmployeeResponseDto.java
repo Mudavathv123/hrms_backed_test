@@ -26,4 +26,5 @@ public class EmployeeResponseDto {
     private LocalDate joiningDate;
     private LocalDate dateOfBirth;
     private String departmentName;
+    private Boolean isActive;
 }

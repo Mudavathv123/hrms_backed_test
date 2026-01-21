@@ -26,6 +26,7 @@ public class DtoMapper {
                                 .email(employee.getEmail())
                                 .phone(employee.getPhone())
                                 .address(employee.getAddress())
+                                .isActive(employee.getIsActive())
                                 .avatar(
                                                 employee.getAvatar() != null
                                                                 ? employee.getAvatar()

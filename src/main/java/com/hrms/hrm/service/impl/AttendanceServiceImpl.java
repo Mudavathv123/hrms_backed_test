@@ -91,6 +91,15 @@ public class AttendanceServiceImpl implements AttendanceService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
+        if (!employee.getIsActive()) {
+            throw new RuntimeException("Inactive employee cannot check in");
+        }
+
+        if (employee.getResignationDate() != null &&
+                LocalDate.now().isAfter(employee.getResignationDate())) {
+            throw new RuntimeException("Employee has resigned");
+        }
+
         Attendance attendance = attendanceRepository
                 .findFirstByEmployeeIdAndDate(employeeId, today)
                 .orElse(null);
@@ -141,6 +150,12 @@ public class AttendanceServiceImpl implements AttendanceService {
     public AttendanceResponseDto checkOut(UUID employeeId) {
 
         Attendance attendance = getTodayAttendance(employeeId);
+
+        Employee emp = attendance.getEmployee();
+
+        if (!emp.getIsActive()) {
+            throw new RuntimeException("Inactive employee cannot check out");
+        }
 
         if (attendance.getCheckOutTime() != null) {
             throw new RuntimeException("Already checked out");
@@ -273,10 +288,16 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public List<AttendanceResponseDto> getAttendanceHistory(UUID employeeId) {
+        Employee emp = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
         return attendanceRepository.findByEmployeeId(employeeId)
                 .stream()
+                .filter(a -> emp.getResignationDate() == null ||
+                        !a.getDate().isAfter(emp.getResignationDate()))
                 .map(DtoMapper::toDto)
                 .toList();
+
     }
 
     @Override
@@ -313,7 +334,10 @@ public class AttendanceServiceImpl implements AttendanceService {
 
         LocalDate today = LocalDate.now();
 
-        List<Employee> employees = employeeRepository.findAll();
+        List<Employee> employees = employeeRepository.findAll()
+                .stream()
+                .filter(emp -> isEmployeeEligible(emp, LocalDate.now()))
+                .toList();
 
         Map<UUID, Attendance> attendanceMap = attendanceRepository
                 .findByDate(today)
@@ -331,7 +355,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             String status;
             if (attendance != null) {
-                
+
                 status = attendance.getStatus() != null
                         ? attendance.getStatus().name()
                         : (attendance.getCheckInTime() != null
@@ -380,7 +404,10 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw new IllegalArgumentException("Invalid date format. Use YYYY-MM-DD");
         }
 
-        List<Employee> employees = employeeRepository.findAll();
+        List<Employee> employees = employeeRepository.findAll()
+                .stream()
+                .filter(emp -> isEmployeeEligible(emp, parsedDate))
+                .toList();
 
         Map<UUID, Attendance> attendanceMap = attendanceRepository
                 .findByDate(parsedDate)
@@ -401,7 +428,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             String status;
             if (attendance != null) {
-                
+
                 status = attendance.getStatus() != null
                         ? attendance.getStatus().name()
                         : (attendance.getCheckInTime() != null
@@ -462,7 +489,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .build();
         }
 
-        List<Employee> employees = employeeRepository.findAll();
+        List<Employee> employees = employeeRepository.findAll()
+                .stream()
+                .filter(emp -> isEmployeeEligible(emp, weekStart))
+                .toList();
 
         List<WeeklyEmployeeSummaryDto> employeeSummaries = new ArrayList<>();
         WeeklySummaryDto overall = new WeeklySummaryDto();
@@ -534,7 +564,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 String status;
 
                 if (a != null) {
-                   
+
                     status = a.getStatus() != null
                             ? a.getStatus().name()
                             : (a.getCheckInTime() != null
@@ -563,7 +593,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                             0,
                             0,
                             false,
-                            null));
+                            null,
+                            emp.getIsActive()));
                 }
             }
         }
@@ -579,6 +610,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<WeeklyEmployeeSummaryDto> list = new ArrayList<>();
 
         for (Employee emp : employees) {
+            if (!isEmployeeEligible(emp, weekStart)) {
+                continue;
+            }
             WeeklySummaryDto summary = calculateWeeklySummary(emp.getId(), weekStart, weekStart.plusDays(6));
 
             list.add(new WeeklyEmployeeSummaryDto(
@@ -657,11 +691,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         for (Attendance attendance : records) {
             attendance.setCheckOutTime(autoCheckoutTime);
 
-            // Recalculate worked time, overtime, breaks, and status
+            Employee emp = attendance.getEmployee();
+
+            if (!emp.getIsActive()) {
+                continue;
+            }
+
             calculateFinalAttendance(attendance);
 
-            // If status was null (i.e., check-in exists but not checked out), mark as
-            // PRESENT or HALF_DAY
             if (attendance.getStatus() == null) {
                 long workedMinutes = attendance.getTotalMinutes() != null ? attendance.getTotalMinutes() : 0;
                 attendance.setStatus(workedMinutes < 240
@@ -676,6 +713,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private WeeklySummaryDto calculateWeeklySummary(UUID employeeId, LocalDate start, LocalDate end) {
+
+        Employee emp = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        if (!isEmployeeEligible(emp, start)) {
+            return new WeeklySummaryDto(0, 0, 0, 0, 0);
+        }
 
         List<Attendance> records = attendanceRepository.findWeeklyAttendance(employeeId, start, end);
 
@@ -692,6 +736,11 @@ public class AttendanceServiceImpl implements AttendanceService {
             DayOfWeek day = date.getDayOfWeek();
             boolean isHoliday = holidayDates.contains(date);
 
+            if (emp.getResignationDate() != null &&
+                    date.isAfter(emp.getResignationDate())) {
+                continue;
+            }
+
             if (isHoliday) {
                 holiday++;
                 continue;
@@ -706,9 +755,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (a == null) {
                 leave++;
             } else if (a.getCheckInTime() != null && a.getStatus() == null) {
-                // Checked in but no checkout yet
                 a.setStatus(Attendance.AttendanceStatus.ONLINE);
-                present++; // count ONLINE as present
+                present++;
             } else {
                 switch (a.getStatus()) {
                     case PRESENT -> present++;
@@ -732,6 +780,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDate start = LocalDate.of(year, month, 1);
         LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
 
+        Employee emp = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
+
+        if (!emp.getIsActive()) {
+            return new MonthlySummaryDto(0, 0, 0, 0, 0);
+        }
+
         List<Attendance> records = attendanceRepository.findWeeklyAttendance(employeeId, start, end);
 
         int present = 0, halfDay = 0, leave = 0, weekend = 0, holiday = 0;
@@ -746,6 +801,12 @@ public class AttendanceServiceImpl implements AttendanceService {
 
             DayOfWeek day = date.getDayOfWeek();
             boolean isHoliday = holidayDates.contains(date);
+
+            if (emp.getResignationDate() != null &&
+                    date.isAfter(emp.getResignationDate())) {
+                continue;
+            }
+
             if (isHoliday) {
                 holiday++;
                 continue;
@@ -760,7 +821,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (a == null) {
                 leave++;
             } else if (a.getCheckInTime() != null && a.getStatus() == null) {
-               
+
                 a.setStatus(Attendance.AttendanceStatus.ONLINE);
                 present++;
             } else {
@@ -822,7 +883,20 @@ public class AttendanceServiceImpl implements AttendanceService {
                 a.getTotalMinutes() != null ? a.getTotalMinutes().intValue() : 0,
                 a.getOvertimeMinutes() != null ? a.getOvertimeMinutes().intValue() : 0,
                 isLate(a),
-                a.getWorkMode() != null ? a.getWorkMode().name() : null);
+                a.getWorkMode() != null ? a.getWorkMode().name() : null,
+                emp.getIsActive()
+            );
+    }
+
+    private boolean isEmployeeEligible(Employee emp, LocalDate date) {
+        if (!emp.getIsActive())
+            return false;
+
+        if (emp.getResignationDate() != null &&
+                date.isAfter(emp.getResignationDate())) {
+            return false;
+        }
+        return true;
     }
 
 }

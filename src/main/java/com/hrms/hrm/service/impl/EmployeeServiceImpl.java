@@ -49,6 +49,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public List<EmployeeResponseDto> getAllEmployees() {
         return employeeRepository.findAll().stream()
+                .filter(Employee::getIsActive)
                 .map(DtoMapper::toDto)
                 .toList();
     }
@@ -67,6 +68,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Employee employee = DtoMapper.toEntity(request);
         employee.setDepartment(department);
+        employee.setIsActive(true);
+        employee.setResignationDate(null);
+
         employee = employeeRepository.save(employee);
 
         User.Role role = User.Role.ROLE_EMPLOYEE;
@@ -95,8 +99,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .title("New Employee Added")
                             .message("Employee " + employee.getFirstName() + " " + employee.getLastName()
                                     + " has been added to department " + department.getName())
-                            .senderId(null) // System generated
-                            .receiverId(null) // Could be broadcast to admins
+                            .senderId(null)
+                            .receiverId(null)
                             .targetRole("ROLE_ADMIN")
                             .build());
             log.info("Notification sent for new employee: {}", employee.getEmail());
@@ -112,6 +116,11 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
+        if (!employee.getIsActive()) {
+            throw new RuntimeException("Cannot update inactive employee");
+        }
+
         Department department = departmentRepository.findDepartmentByName(request.getDepartmentName())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Department not found with name: " + request.getDepartmentName()));
@@ -166,6 +175,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     public EmployeeResponseDto getEmployeeById(UUID id) {
         Employee emp = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+
         return DtoMapper.toDto(emp);
     }
 
@@ -175,31 +185,31 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
 
+        employee.setIsActive(false);
+        employee.setResignationDate(LocalDate.now());
+        employeeRepository.save(employee);
+
         User user = userRepository.findByEmployee(employee).orElse(null);
-
         if (user != null) {
-            user.setEmployee(null);
-            userRepository.delete(user);
+            user.setIsActive(false);
+            user.setLockedUntil(null);
+            userRepository.save(user);
         }
-
-        employeeRepository.delete(employee);
 
         try {
             notificationService.sendNotification(
                     NotificationRequestDto.builder()
                             .type("ALERT")
                             .date(LocalDate.now())
-                            .title("Employee Deleted")
+                            .title("Employee Deactivated")
                             .message("Employee " + employee.getFirstName() + " " + employee.getLastName()
-                                    + " has been deleted.")
+                                    + " has been marked inactive.")
                             .senderId(null)
                             .receiverId(null)
                             .targetRole("ROLE_ADMIN")
                             .build());
-            log.info("Notification sent for deleted employee: {}", employee.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send notification for deleted employee {}: {}", employee.getEmail(), e.getMessage(),
-                    e);
+            log.error("Notification failed for employee deactivation {}", employee.getEmail(), e);
         }
 
         return null;
@@ -213,8 +223,10 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         return employeeRepository.findByDepartment(department)
                 .stream()
+                .filter(Employee::getIsActive)
                 .map(DtoMapper::toDto)
                 .toList();
+
     }
 
     @Override
@@ -223,6 +235,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = employeeRepository.findById(UUID.fromString(employeeId))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Employee not found with id " + employeeId));
+
+        if (!employee.getIsActive()) {
+            throw new RuntimeException("Inactive employee cannot update avatar");
+        }
 
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("Uploaded file is empty");
@@ -270,6 +286,24 @@ public class EmployeeServiceImpl implements EmployeeService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to upload avatar to S3", e);
         }
+    }
+
+    @Override
+    public List<EmployeeResponseDto> getActiveEmployees() {
+        return employeeRepository.findAllByIsActiveTrue()
+                .stream()
+                .map(DtoMapper::toDto)
+                .toList();
+    }
+
+    @Override
+    public List<EmployeeResponseDto> getInactiveEmployees() {
+
+        List<Employee> inactiveEmployees = employeeRepository.findAllByIsActiveFalse();
+
+        return inactiveEmployees.stream()
+                .map(DtoMapper::toDto)
+                .toList();
     }
 
 }
