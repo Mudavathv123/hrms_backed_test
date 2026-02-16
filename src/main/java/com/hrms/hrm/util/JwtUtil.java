@@ -17,10 +17,11 @@ import java.util.function.Function;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret}")
+    // Defaults are for local/dev only. Override with environment vars or prod properties.
+    @Value("${jwt.secret:dev-secret-change-me-please-use-env-0123456789}")
     private String secret;
 
-    @Value("${jwt.expiration}")
+    @Value("${jwt.expiration:86400000}")
     private Long expirationMs;
 
     public String generateToken(String username, User user) {
