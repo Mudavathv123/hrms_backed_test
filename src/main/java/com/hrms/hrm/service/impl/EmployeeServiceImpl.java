@@ -12,15 +12,12 @@ import com.hrms.hrm.repository.DepartmentRepository;
 import com.hrms.hrm.repository.EmployeeRepository;
 import com.hrms.hrm.repository.UserRepository;
 import com.hrms.hrm.service.EmployeeService;
+import com.hrms.hrm.service.FileStorageService;
 import com.hrms.hrm.service.NotificationService;
 import com.hrms.hrm.util.DtoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,16 +32,13 @@ import java.util.UUID;
 @Slf4j
 public class EmployeeServiceImpl implements EmployeeService {
 
-    private final S3Client s3Client;
+    private final FileStorageService fileStorageService;
 
     private final EmployeeRepository employeeRepository;
     private final NotificationService notificationService;
     private final DepartmentRepository departmentRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
-
-    @Value("${aws.s3.bucket}")
-    private String bucketName;
 
     @Override
     public List<EmployeeResponseDto> getAllEmployees() {
@@ -237,54 +231,50 @@ public class EmployeeServiceImpl implements EmployeeService {
                         "Employee not found with id " + employeeId));
 
         if (!employee.getIsActive()) {
-            throw new RuntimeException("Inactive employee cannot update avatar");
+            throw new ResourceNotFoundException("Inactive employee cannot update avatar");
         }
 
         if (file == null || file.isEmpty()) {
-            throw new RuntimeException("Uploaded file is empty");
+            throw new ResourceNotFoundException("Uploaded profile image is empty");
         }
 
-        final String oldKey;
+        // Validate file size (max 5MB)
+        long fileSizeInMB = file.getSize() / (1024 * 1024);
+        if (fileSizeInMB > 5) {
+            throw new ResourceNotFoundException(
+                    String.format("Profile image size exceeds 5MB limit. Current size: %dMB", fileSizeInMB));
+        }
 
-        if (employee.getAvatar() != null && !employee.getAvatar().isBlank()) {
-            oldKey = employee.getAvatar()
-                    .replace("https://d1ujpx8cjlbvx.cloudfront.net/", "");
-        } else {
-            oldKey = null;
+        // Validate file type (only JPEG and PNG)
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.equals("image/jpeg") && 
+            !contentType.equals("image/png") && !contentType.equals("image/jpg"))) {
+            throw new ResourceNotFoundException(
+                    "Invalid profile image type. Only JPEG and PNG are allowed");
         }
 
         try {
-            String extension = "";
-            String originalName = file.getOriginalFilename();
-            if (originalName != null && originalName.contains(".")) {
-                extension = originalName.substring(originalName.lastIndexOf("."));
+            // Delete old avatar if exists
+            if (employee.getAvatar() != null && !employee.getAvatar().isBlank()) {
+                fileStorageService.deleteFile(employee.getAvatar());
+                log.info("Deleted old avatar for employee: {}", employeeId);
             }
 
-            String key = "avatars/" + employeeId + "-" + System.currentTimeMillis() + extension;
+            // Upload new profile image to S3 or local storage
+            String fileUrl = fileStorageService.uploadFile(file);
 
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(key)
-                    .contentType(file.getContentType())
-                    .cacheControl("public, max-age=31536000, immutable")
-                    .build();
-
-            s3Client.putObject(
-                    putObjectRequest,
-                    RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-
-            String cloudFrontUrl = "https://d1ujpx8cjlbvx.cloudfront.net/" + key;
-            employee.setAvatar(cloudFrontUrl);
+            employee.setAvatar(fileUrl);
             employeeRepository.save(employee);
 
-            if (oldKey != null && !oldKey.isBlank()) {
-                s3Client.deleteObject(builder -> builder.bucket(bucketName).key(oldKey).build());
-            }
-
+            log.info("Successfully uploaded profile image for employee: {}", employeeId);
             return DtoMapper.toDto(employee);
 
+        } catch (ResourceNotFoundException e) {
+            log.error("Validation error uploading avatar for employee {}: {}", employeeId, e.getMessage());
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to upload avatar to S3", e);
+            log.error("Failed to upload avatar for employee {}", employeeId, e);
+            throw new RuntimeException("Failed to upload profile image: " + e.getMessage(), e);
         }
     }
 

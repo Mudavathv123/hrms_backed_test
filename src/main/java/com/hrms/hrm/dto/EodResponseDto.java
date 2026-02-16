@@ -2,7 +2,10 @@ package com.hrms.hrm.dto;
 
 import lombok.*;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
+
+import com.hrms.hrm.model.FileAttachment;
 
 @Data
 @AllArgsConstructor
@@ -18,4 +21,7 @@ public class EodResponseDto {
     private String workSummary;
     private String blockers;
     private String status;
+
+    private List<FileAttachmentDto> attachments;
+
 }

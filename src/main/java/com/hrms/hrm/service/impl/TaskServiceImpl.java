@@ -1,17 +1,21 @@
 package com.hrms.hrm.service.impl;
 
+import com.hrms.hrm.dto.FileAttachmentDto;
 import com.hrms.hrm.dto.NotificationRequestDto;
 import com.hrms.hrm.dto.TaskRequestDto;
 import com.hrms.hrm.dto.TaskResponseDto;
 import com.hrms.hrm.dto.TaskStatusUpdateDto;
 import com.hrms.hrm.error.ResourceNotFoundException;
 import com.hrms.hrm.model.Employee;
+import com.hrms.hrm.model.FileAttachment;
 import com.hrms.hrm.model.Notification;
 import com.hrms.hrm.model.Task;
 import com.hrms.hrm.model.User;
 import com.hrms.hrm.repository.EmployeeRepository;
+import com.hrms.hrm.repository.FileAttachmentRepository;
 import com.hrms.hrm.repository.TaskRepository;
 import com.hrms.hrm.repository.UserRepository;
+import com.hrms.hrm.service.FileStorageService;
 import com.hrms.hrm.service.NotificationService;
 import com.hrms.hrm.service.TaskService;
 import com.hrms.hrm.util.DtoMapper;
@@ -35,6 +39,9 @@ public class TaskServiceImpl implements TaskService {
         private final EmployeeRepository employeeRepository;
         private final UserRepository userRepository;
         private final NotificationService notificationService;
+        private final FileAttachmentRepository fileAttachmentRepository;
+        private final FileStorageService fileStorageService;
+
 
         private Optional<Employee> getLoggedInEmployee() {
                 String email = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -164,7 +171,7 @@ public class TaskServiceImpl implements TaskService {
                                                 .date(LocalDate.now())
                                                 .message("Your task '" + updated.getTitle()
                                                                 + "' has been updated by " + senderName)
-                                                .senderId(senderId) // NULL if ADMIN
+                                                .senderId(senderId) 
                                                 .receiverId(updated.getAssignedTo().getId())
                                                 .targetRole("ROLE_EMPLOYEE")
                                                 .build());
@@ -259,18 +266,63 @@ public class TaskServiceImpl implements TaskService {
         }
 
         @Override
-        public List<TaskResponseDto> getTasksForEmployee(UUID employeeId) {
-                return taskRepository.findByAssignedToId(employeeId)
-                                .stream()
-                                .map(DtoMapper::toDto)
-                                .toList();
-        }
+public List<TaskResponseDto> getTasksForEmployee(UUID employeeId) {
 
-        @Override
-        public List<TaskResponseDto> getAllTasks() {
-                return taskRepository.findAll()
-                                .stream()
-                                .map(DtoMapper::toDto)
-                                .toList();
-        }
+    return taskRepository.findByAssignedToId(employeeId)
+            .stream()
+            .map(task -> {
+
+                TaskResponseDto dto = DtoMapper.toDto(task);
+
+                List<FileAttachment> files =
+                        fileAttachmentRepository.findByReferenceId(task.getId());
+
+                List<FileAttachmentDto> fileDtos = files.stream()
+                        .map(file -> {
+
+                            String signedUrl =
+                                    fileStorageService.generatePresinedUrl(
+                                            file.getFileUrl());
+
+                            return DtoMapper.toDto(file, signedUrl);
+                        })
+                        .toList();
+
+                dto.setAttachments(fileDtos);
+
+                return dto;
+            })
+            .toList();
+}
+
+@Override
+public List<TaskResponseDto> getAllTasks() {
+
+    return taskRepository.findAll()
+            .stream()
+            .map(task -> {
+
+                TaskResponseDto dto = DtoMapper.toDto(task);
+
+                List<FileAttachment> files =
+                        fileAttachmentRepository.findByReferenceId(task.getId());
+
+                List<FileAttachmentDto> fileDtos = files.stream()
+                        .map(file -> {
+
+                            String signedUrl =
+                                    fileStorageService.generatePresinedUrl(
+                                            file.getFileUrl());
+
+                            return DtoMapper.toDto(file, signedUrl);
+                        })
+                        .toList();
+
+                dto.setAttachments(fileDtos);
+
+                return dto;
+            })
+            .toList();
+}
+
 }

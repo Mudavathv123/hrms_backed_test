@@ -2,6 +2,7 @@ package com.hrms.hrm.security;
 
 import com.hrms.hrm.service.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,8 +20,16 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Production-ready Spring Security configuration with:
+ * - JWT authentication
+ * - CORS support
+ * - Role-based access control
+ * - S3 and file upload security
+ */
 @RequiredArgsConstructor
 @EnableWebSecurity
 @Configuration
@@ -28,6 +37,9 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:3001}")
+    private String corsOrigins;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -47,19 +59,21 @@ public class SecurityConfig {
         return authConfig.getAuthenticationManager();
     }
 
+    /**
+     * Configure CORS from environment variables for production deployment
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "http://localhost:3001",
-                "http://localhost:5173",
-                "http://localhost:4200",
-                "https://d1ujpx8cjlbvx.cloudfront.net"));
+        
+        // Parse allowed origins from environment variable
+        String[] origins = corsOrigins.split(",");
+        config.setAllowedOrigins(Arrays.asList(origins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization"));
+        config.setExposedHeaders(List.of("Authorization", "Content-Disposition", "X-Requested-With"));
         config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -89,7 +103,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/reset-password").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/auth/forgot-password").hasRole("ADMIN")
 
-                        // ---------------- EMPLOYEE ----------------
+                        // File Upload & Serving (Profile images, Payslips from S3/local)
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/files/upload").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/employees/*/avatar").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/files/*/download").authenticated()
+
+                        // Static files
+                        .requestMatchers("/static/**").permitAll()
+
+                        // -------- EMPLOYEE --------
                         .requestMatchers(HttpMethod.GET, "/api/employees/get-all-employees")
                         .hasAnyRole("ADMIN", "HR", "MANAGER")
 
@@ -99,14 +122,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/employees/department/**")
                         .hasAnyRole("HR", "ADMIN")
 
-                        .requestMatchers(HttpMethod.POST, "/api/employees/*/avatar").authenticated()
-                        .requestMatchers("/uploads/**").permitAll()
-
-                        // ---------------- ATTENDANCE ----------------
+                        // -------- ATTENDANCE --------
                         .requestMatchers("/api/attendance/**")
                         .hasAnyRole("ADMIN", "HR", "EMPLOYEE")
 
-                        // ---------------- TASKS ----------------
+                        // -------- TASKS --------
                         .requestMatchers(HttpMethod.POST, "/api/tasks/**")
                         .hasAnyRole("ADMIN", "HR", "MANAGER")
 
@@ -125,7 +145,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/tasks")
                         .hasAnyRole("ADMIN", "HR", "MANAGER")
 
-                        // ---------------- LEAVES ----------------
+                        // -------- LEAVES --------
                         .requestMatchers(HttpMethod.POST, "/api/leaves")
                         .hasRole("EMPLOYEE")
 
@@ -141,7 +161,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/leaves")
                         .hasAnyRole("ADMIN", "HR")
 
-                        // ---------------- NOTIFICATIONS ----------------
+                        // -------- NOTIFICATIONS --------
                         .requestMatchers(HttpMethod.POST, "/api/notifications/**")
                         .hasRole("HR")
 
@@ -154,7 +174,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/notifications/**")
                         .authenticated()
 
-                        // ---------------- EOD ----------------
+                        // -------- EOD --------
                         .requestMatchers(HttpMethod.POST, "/api/eod")
                         .hasAnyRole("EMPLOYEE","HR")
 
@@ -170,7 +190,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/eod/**")
                         .authenticated()
 
-                        .requestMatchers("/api/payroll/salary-structure")
+                        // -------- PAYROLL --------
+                        .requestMatchers(HttpMethod.GET, "/api/payroll/salary-structure")
+                        .hasAnyRole("ADMIN", "HR")
+
+                        .requestMatchers(HttpMethod.GET, "/api/payroll/**")
+                        .hasAnyRole("ADMIN", "HR", "EMPLOYEE")
+
+                        .requestMatchers(HttpMethod.POST, "/api/payroll/**")
                         .hasAnyRole("ADMIN", "HR")
 
                         // DEFAULT

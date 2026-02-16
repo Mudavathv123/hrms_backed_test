@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  hrm-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hrm-backend
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    environment:
+      # Database Configuration
+      - DB_URL=${DB_URL:-jdbc:mysql://mysql:3306/hrm}
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      
+      # Server Configuration
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      
+      # JWT Configuration
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+      
+      # AWS S3 Configuration
+      - FILE_STORAGE=${FILE_STORAGE:-s3}
+      - AWS_REGION=${AWS_REGION:-ap-south-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-hrms-employee-docs}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      
+      # File Upload Configuration (in MB)
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-20MB}
+      - MAX_REQUEST_SIZE=${MAX_REQUEST_SIZE:-20MB}
+      - FILE_IMAGE_MAX_SIZE=${FILE_IMAGE_MAX_SIZE:-5}
+      - FILE_DOCUMENT_MAX_SIZE=${FILE_DOCUMENT_MAX_SIZE:-10}
+      - FILE_PAYSLIP_MAX_SIZE=${FILE_PAYSLIP_MAX_SIZE:-20}
+      
+      # CORS Configuration
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      
+      # JVM Configuration
+      - JAVA_OPTS=-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=25.0
+    
+    depends_on:
+      mysql:
+        condition: service_healthy
+    
+    networks:
+      - hrm-network
+    
+    restart: unless-stopped
+    
+    volumes:
+      # Local fallback storage for file uploads
+      - ./uploads:/app/uploads
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+  
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: hrm-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-password}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-hrm}
+      - MYSQL_USER=${DB_USERNAME:-hrm_user}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-password}
+      - MYSQL_ROOT_HOST=%
+    
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    
+    networks:
+      - hrm-network
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  hrm-network:
+    driver: bridge

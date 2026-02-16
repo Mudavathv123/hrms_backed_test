@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -24,6 +25,8 @@ public class TaskResponseDto {
     private String employeeCode;
     private String assignedToEmployeeName;
     private LocalDate startDate;
+
+    private List<FileAttachmentDto> attachments;
 
 }
 

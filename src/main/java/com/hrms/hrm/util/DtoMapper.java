@@ -8,6 +8,7 @@ import com.hrms.hrm.model.Task;
 import com.hrms.hrm.model.Leave;
 import com.hrms.hrm.model.Notification;
 import com.hrms.hrm.model.EodReport;
+import com.hrms.hrm.model.FileAttachment;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -200,6 +201,20 @@ public class DtoMapper {
                                 .workSummary(eod.getWorkSummary())
                                 .blockers(eod.getBlockers())
                                 .status(eod.getStatus().name())
+                                .build();
+        }
+
+        public static FileAttachmentDto toDto(FileAttachment file, String downloadUrl) {
+
+                return FileAttachmentDto.builder()
+                                .id(file.getId())
+                                .fileName(file.getFileName())
+                                .fileType(file.getFileType())
+                                .fileSize(file.getFileSize())
+                                .downloadUrl(downloadUrl)
+                                .module(file.getModule())
+                                .referenceId(file.getReferenceId())
+                                .uploadedAt(file.getUploadedAt())
                                 .build();
         }
 

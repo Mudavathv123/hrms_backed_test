@@ -4,13 +4,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.hrms.hrm.payroll.model.Document;
 import com.hrms.hrm.payroll.repository.DocumentRepository;
-import com.hrms.hrm.payroll.service.FileStorageService;
+import com.hrms.hrm.payroll.service.FileStorageService2;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
-    private final FileStorageService fileStorageService;
+    private final FileStorageService2 fileStorageService;
 
     public Document upload(
             MultipartFile file,
@@ -28,7 +28,7 @@ public class DocumentService {
             UUID uploadedBy) {
 
         String localPath = fileStorageService.saveToLocal(file);
-        // String s3Url = fileStorageService.uploadToS3(file);
+        String s3Url = fileStorageService.uploadToS3(file);
 
         Document document = Document.builder()
                 .employeeId(employeeId)
